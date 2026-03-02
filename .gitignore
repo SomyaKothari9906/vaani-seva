@@ -21,7 +21,11 @@ node_modules/
 .vite/
 
 # Large binary assets (share manually via the "large models" folder)
-large models/
+# Track README.md but ignore actual binary files
+large models/*.mp4
+large models/*.glb
+large models/*.fbx
+large models/*.gltf
 website/public/hero.mp4
 website/public/models/
 
