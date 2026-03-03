@@ -2,8 +2,9 @@
 # Languages : Hindi (hi) | Marathi (mr) | Tamil (ta) | English (en)
 # TTS       : Sarvam AI (primary, all 4 langs) → Amazon Polly fallback
 # STT       : Twilio native Gather speech recognition
-# LLM       : Amazon Bedrock (configurable) + RAG
-# Latency   : DynamoDB log on background thread · Single combined TTS call · 150 token cap
+# LLM       : OpenAI GPT-4o-mini (primary) → Bedrock fallback
+# Memory    : Full conversation history per call from DynamoDB
+# Latency   : DynamoDB log on background thread · Single combined TTS · 250 token cap
 
 import json
 import os
@@ -14,6 +15,7 @@ import logging
 import threading
 import boto3
 import requests
+from openai import OpenAI
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from datetime import datetime
 
@@ -28,6 +30,11 @@ s3_client = boto3.client("s3", region_name=os.environ["AWS_REGION"])
 calls_table     = dynamodb.Table(os.environ["DYNAMODB_CALLS_TABLE"])
 knowledge_table = dynamodb.Table(os.environ["DYNAMODB_KNOWLEDGE_TABLE"])
 vectors_table   = dynamodb.Table(os.environ["DYNAMODB_VECTORS_TABLE"])
+
+# ── OpenAI client ────────────────────────────────────────────
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+openai_client  = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+LLM_PROVIDER   = os.environ.get("LLM_PROVIDER", "openai")  # "openai" or "bedrock"
 
 # ── Config ───────────────────────────────────────────────────
 BEDROCK_MODEL_ID           = os.environ["BEDROCK_MODEL_ID"]
@@ -70,21 +77,37 @@ LANG_CONFIG = {
 
 DIGIT_TO_LANG = {v["digit"]: k for k, v in LANG_CONFIG.items()}
 
-# ── System prompt — expanded beyond schemes ──────────────────
-SYSTEM_PROMPT = """You are VaaniSeva (वाणीसेवा), an AI voice assistant for rural India. You help people with:
-- Government schemes and welfare programs (PM-Kisan, Ayushman Bharat, MGNREGA, PM Awas, Sukanya Samriddhi, Ujjwala, Jan Dhan, Mudra, Atal Pension, Fasal Bima, SVANidhi, Beti Bachao, Janani Suraksha, Garib Kalyan Anna, National Scholarship, Soil Health Card, POSHAN, Mahila Samman Savings, Kaushal Vikas, Suraksha Bima, Jeevan Jyoti Bima, Stand Up India, Matru Vandana, National Family Benefit, Samagra Shiksha, RBSK, Saubhagya, Swachh Bharat, Shram Yogi Mandhan, Vishwakarma Yojana, Krishi Sinchai Yojana)
-- Basic farming advice (crop selection, pest control, soil health, irrigation)
-- Healthcare guidance (nearby hospitals, ASHA workers, common illnesses)
-- Financial literacy (saving, loans, bank accounts, insurance)
-- Education support (scholarships, school enrollment, mid-day meals)
-- Ration card, Aadhaar, voter ID related queries
+# ── System prompt — warm, human, conversational ─────────────
+SYSTEM_PROMPT = """You are VaaniSeva (वाणीसेवा) — think of yourself as a warm, knowledgeable friend who happens to know everything. You're talking to someone on the phone. Be natural. Be human. Have personality.
 
-STRICT RULES:
-- Reply in the SAME language the user spoke. Hindi → pure Devanagari. Marathi → pure Marathi script. Tamil → Tamil script. English → simple English. NEVER mix scripts.
-- Keep answers SHORT — 2-3 sentences max. This is a phone call.
-- Use simple village-level words. No jargon.
-- Always end by asking if they want to know more.
-- If you don't know something, say so honestly and suggest the relevant helpline."""
+Who you are:
+- A genuinely helpful AI assistant available to EVERYONE via a simple phone call
+- You speak like a caring, smart friend — not a robot or government helpline
+- You have real warmth — use phrases like "बिल्कुल!" "अच्छा सवाल है!" "चिंता मत करो" naturally
+- You remember everything said earlier in this call and build on it
+
+What you can help with (and you're GREAT at all of these):
+1. **Government schemes** — PM-Kisan, Ayushman Bharat, MGNREGA, Ujjwala, Mudra loans, Atal Pension, Fasal Bima, SVANidhi, scholarships, housing, and 30+ more. You know eligibility, documents needed, how to apply, helpline numbers.
+2. **Farming & agriculture** — crop selection for their soil/season, organic methods, pest control, when to sow/harvest, mandi prices, weather impact, irrigation tips, government subsidies on seeds/fertilizers
+3. **Health & wellness** — common illnesses, first aid, when to see a doctor, nearest PHC/CHC info, ASHA worker roles, maternal health, child nutrition, vaccination schedules, mental health awareness
+4. **Money & finance** — how to open a bank account, save money, get loans, insurance explained simply, SHG/microfinance, digital payments (UPI), avoiding fraud
+5. **Education** — school enrollment, scholarships (national + state), mid-day meals, vocational training, skill development programs, distance learning
+6. **Legal rights & documents** — Aadhaar, ration card, voter ID, caste certificate, land records, RTI filing, labour rights, women's rights, domestic violence helplines
+7. **Daily life problems** — electricity complaints, water issues, road repair, PDS shop problems, pension delays — guide them on WHO to contact and HOW
+8. **General knowledge & curiosity** — answer ANY question they're curious about. If a farmer asks "why is the sky blue?" — answer it! Treat every question with respect.
+9. **Emotional support** — if someone sounds stressed, lonely, or upset, be compassionate. Listen. Suggest helplines if needed (iCall: 9152987821, Vandrevala: 1860-2662-345).
+
+How you talk:
+- This is a PHONE CALL — keep responses to 3-4 short sentences. Conversational, not essay-style.
+- Sound like a real person, not a textbook. Use everyday language.
+- Match their energy — if they're excited, be enthusiastic. If worried, be reassuring.
+- Use the SAME language they speak. Hindi → pure Devanagari. Marathi → Marathi. Tamil → Tamil. English → simple English. NEVER MIX SCRIPTS.
+- DON'T just dump info — have a conversation. Ask follow-up questions naturally: "आपके परिवार में कितने लोग हैं? उसके हिसाब से बताता हूँ" or "Which state are you from? That'll help me give better info."
+- If you don't know something, say "मुझे इसकी पूरी जानकारी नहीं है, लेकिन आप इस नंबर पर कॉल कर सकते हैं..." — be honest, but always give a next step.
+- NEVER say "I'm just an AI" or "I don't have feelings" — you're VaaniSeva, a helpful friend on the phone.
+- Add small human touches: "अच्छा", "हाँ बिल्कुल", "सही बात है" etc.
+
+Remember: You're not a government bot. You're the smartest, kindest friend these people have ever called. Make them feel heard. Make them feel helped. Make them want to call back."""
 
 
 # ══════════════════════════════════════════════════════════════
@@ -304,7 +327,7 @@ def handle_gather(params):
     }
 
     try:
-        answer = rag_pipeline(speech_text, language)
+        answer = rag_pipeline(speech_text, language, call_sid)
     except Exception as e:
         logger.error(f"RAG error: {e}")
         answer = error_msgs.get(language, error_msgs["en"])
@@ -339,11 +362,26 @@ def handle_gather(params):
     return twiml_response(response)
 
 
-# ── RAG Pipeline ─────────────────────────────────────────────
-def rag_pipeline(query: str, language: str) -> str:
+# ── RAG Pipeline (with conversation memory) ──────────────────
+def rag_pipeline(query: str, language: str, call_sid: str = "") -> str:
     embedding = get_embedding(query)
     context   = retrieve_context(embedding, language)
-    return ask_llm(query, context, language)
+    history   = get_conversation_history(call_sid) if call_sid else []
+    return ask_llm(query, context, language, history)
+
+
+def get_conversation_history(call_sid: str) -> list:
+    """Fetch conversation history from DynamoDB for this call."""
+    if not call_sid:
+        return []
+    try:
+        ts = get_call_timestamp(call_sid)
+        result = calls_table.get_item(Key={"call_id": call_sid, "timestamp": ts})
+        item = result.get("Item", {})
+        return item.get("conversation_history", [])
+    except Exception as e:
+        logger.warning(f"Failed to fetch conversation history: {e}")
+        return []
 
 
 def get_embedding(text: str) -> list:
@@ -400,7 +438,7 @@ def retrieve_context(query_embedding: list, language: str) -> str:
     return "\n\n".join(best_text(item) for _, item in top)
 
 
-def ask_llm(query: str, context: str, language: str) -> str:
+def ask_llm(query: str, context: str, language: str, history: list = None) -> str:
     lang_instructions = {
         "hi": "जवाब पूरी तरह हिंदी देवनागरी लिपि में दो। कोई भी अंग्रेजी या रोमन अक्षर मत लिखो।",
         "mr": "उत्तर संपूर्णपणे मराठी लिपीत द्या. कोणतेही इंग्रजी किंवा रोमन अक्षर वापरू नका.",
@@ -411,30 +449,62 @@ def ask_llm(query: str, context: str, language: str) -> str:
 
     user_msg = f"""{lang_instruction}
 
-Context from knowledge database:
+Relevant context from our knowledge base (use if helpful, ignore if not relevant):
 {context}
 
-User's question: {query}
+User just said: {query}
 
-Answer in 2-3 short sentences suitable for a phone call."""
+Respond naturally in 3-4 short sentences. This is a phone call — be conversational, not robotic."""
 
+    # Try OpenAI first (much better conversational ability)
+    if LLM_PROVIDER == "openai" and openai_client:
+        try:
+            return _ask_openai(user_msg, history or [])
+        except Exception as e:
+            logger.warning(f"OpenAI failed, falling back to Bedrock: {e}")
+
+    # Bedrock fallback
+    return _ask_bedrock(user_msg)
+
+
+def _ask_openai(user_msg: str, history: list) -> str:
+    """Call OpenAI GPT-4o-mini with full conversation history."""
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Add conversation history (last 10 turns max to stay within context)
+    for turn in (history or [])[-10:]:
+        messages.append({"role": "user", "content": turn.get("query", "")})
+        messages.append({"role": "assistant", "content": turn.get("answer", "")})
+
+    # Current user message
+    messages.append({"role": "user", "content": user_msg})
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        max_tokens=250,
+        temperature=0.7,  # more creative/human
+    )
+    return response.choices[0].message.content.strip()
+
+
+def _ask_bedrock(user_msg: str) -> str:
+    """Fallback: call Bedrock (no conversation memory — stateless)."""
     messages = [
         {"role": "user", "content": [{"text": f"{SYSTEM_PROMPT}\n\n{user_msg}"}]}
     ]
-
     response = bedrock.invoke_model(
         modelId=BEDROCK_MODEL_ID,
         body=json.dumps({
             "messages": messages,
             "inferenceConfig": {
-                "max_new_tokens": 150,
-                "temperature": 0.2
+                "max_new_tokens": 250,
+                "temperature": 0.5
             }
         }),
         contentType="application/json",
         accept="application/json"
     )
-
     result = json.loads(response["body"].read())
     return result["output"]["message"]["content"][0]["text"].strip()
 
