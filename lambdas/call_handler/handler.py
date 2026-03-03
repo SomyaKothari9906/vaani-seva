@@ -41,7 +41,34 @@ BEDROCK_MODEL_ID           = os.environ["BEDROCK_MODEL_ID"]
 BEDROCK_EMBEDDING_MODEL_ID = os.environ["BEDROCK_EMBEDDING_MODEL_ID"]
 SARVAM_API_KEY             = os.environ.get("SARVAM_API_KEY", "")
 S3_BUCKET                  = os.environ["S3_DOCUMENTS_BUCKET"]
+DATA_GOV_API_KEY           = os.environ.get("DATA_GOV_API_KEY", "")
 BASE_URL                   = ""  # Set at runtime from API Gateway event
+
+# ── Distress keywords (multi-language) ─────────────────────────
+DISTRESS_IMMEDIATE = [
+    "मरना चाहता", "जीना नहीं चाहता", "जिंदगी से थक गया",
+    "आत्महत्या", "suicide", "want to die", "end my life",
+    "koi fayda nahi jeene ka", "जीने का मन नहीं",
+    "आपने आप को खत्म", "khatam karna chahta",
+]
+DISTRESS_ELEVATED = [
+    "बहुत थका", "कोई सहारा नहीं", "bahut akela", "koi nahi sunata",
+    "can't go on", "no point", "hopeless", "निराश", "depression",
+]
+DANGER_IMMEDIATE = [
+    "मार रहे हैं", "बचाओ", "bachao", "help police", "पुलिस बुलाओ",
+    "maar rahe", "खतरा", "danger", "attack", "हिंसा",
+]
+
+# ── Intent keywords (for routing to live APIs) ───────────────────
+MARKET_PRICE_KEYWORDS = [
+    "bhaav", "bhav", "भाव", "भाव", "rate", "price", "mandi", "मंडी",
+    "kya chal raha", "kitne ka", "दाम", "today price", "aaj ka",
+]
+WEATHER_KEYWORDS = [
+    "baarish", "बारिश", "weather", "मौसम", "barsat", "बरसात",
+    "aandhiyan", "आंधी", "garmi", "ठंड", "rain", "temperature",
+]
 
 # ── Language config ──────────────────────────────────────────
 LANG_CONFIG = {
@@ -319,6 +346,13 @@ def handle_gather(params):
     if not speech_text:
         return ask_again(language)
 
+    # ── Safety check — before any LLM processing ─────────────────
+    safety = check_safety(speech_text, language)
+    if safety == "danger_immediate":
+        return respond_danger(language)
+    if safety == "distress_immediate":
+        return respond_distress_crisis(language)
+
     error_msgs = {
         "hi": "मुझे अभी कुछ तकलीफ हो रही है। थोड़ी देर बाद कोशिश करें।",
         "mr": "मला आत्ता काही अडचण आहे. थोड्या वेळाने प्रयत्न करा.",
@@ -338,17 +372,36 @@ def handle_gather(params):
         "en": "Thank you for calling VaaniSeva. Goodbye.",
     }
 
+    # ── Intent routing ────────────────────────────────────
+    intent = classify_intent(speech_text)
+    logger.info(f"Intent: {intent}")
+
     try:
-        answer = rag_pipeline(speech_text, language, call_sid)
+        if intent == "mandi_price":
+            answer = fetch_mandi_price_response(speech_text, language)
+        else:
+            answer = rag_pipeline(speech_text, language, call_sid)
     except Exception as e:
-        logger.error(f"RAG error: {e}")
+        logger.error(f"Pipeline error: {e}")
         answer = error_msgs.get(language, error_msgs["en"])
 
-    follow_up = follow_ups.get(language, follow_ups["en"])
-    goodbye   = goodbyes.get(language, goodbyes["en"])
-    cfg       = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+    # Soft distress check — log elevated concern, don’t interrupt call
+    if safety == "distress_elevated":
+        threading.Thread(
+            target=log_distress, args=(call_sid, speech_text, 0.55), daemon=True
+        ).start()
+        # Gently acknowledge at end of answer
+        comfort = {
+            "hi": " और भई, अगर कभी मन भारी लगे तो iCall पर कॉल करना: 9152987821",
+            "en": " And if things feel heavy, please call iCall: 9152987821",
+            "mr": " आणि मन जड वाटल्यास iCall कडे कॉल करा: 9152987821",
+            "ta": " மனம் கஷ்டப்பட்டால் iCall அழைக்கவும்: 9152987821",
+        }
+        answer = answer + comfort.get(language, "")
 
-    # Single combined TTS call (answer + follow_up) to cut 1 Sarvam round-trip
+    follow_up    = follow_ups.get(language, follow_ups["en"])
+    goodbye      = goodbyes.get(language, goodbyes["en"])
+    cfg          = LANG_CONFIG.get(language, LANG_CONFIG["en"])
     combined_msg = f"{answer} {follow_up}"
 
     response = VoiceResponse()
@@ -364,7 +417,6 @@ def handle_gather(params):
     response.append(gather)
     tts_say(response, goodbye, language)
 
-    # Log on background thread — don't block the response
     threading.Thread(
         target=log_query,
         args=(call_sid, speech_text, answer, language),
@@ -372,6 +424,161 @@ def handle_gather(params):
     ).start()
 
     return twiml_response(response)
+
+
+# ── Intent Classification ────────────────────────────────────
+def classify_intent(text: str) -> str:
+    """Fast keyword-based intent router. Returns intent string."""
+    t = text.lower()
+    if any(k in t for k in MARKET_PRICE_KEYWORDS):
+        return "mandi_price"
+    if any(k in t for k in WEATHER_KEYWORDS):
+        return "weather"
+    return "general"
+
+
+def check_safety(text: str, language: str = "hi") -> str:
+    """Returns 'safe', 'distress_elevated', 'distress_immediate', or 'danger_immediate'."""
+    t = text.lower()
+    if any(k.lower() in t for k in DANGER_IMMEDIATE):
+        return "danger_immediate"
+    if any(k.lower() in t for k in DISTRESS_IMMEDIATE):
+        return "distress_immediate"
+    if any(k.lower() in t for k in DISTRESS_ELEVATED):
+        return "distress_elevated"
+    return "safe"
+
+
+def respond_danger(language: str):
+    """Hardcoded police/emergency response — no LLM latency."""
+    msgs = {
+        "hi": "अभी तुरंत 100 पर कॉल करें। मैं आपके साथ हूं। सुरक्षित रहिए।",
+        "en": "Please call 100 immediately. I'm with you. Stay safe.",
+        "mr": "तात्काळ 100 वर कॉल करा. मी तुमच्याबरोबर आहे.",
+        "ta": "உடனடியாக 100 அழைக்கவும். நான் உங்களுடன் இருக்கிறேன்.",
+    }
+    response = VoiceResponse()
+    tts_say(response, msgs.get(language, msgs["en"]), language)
+    return twiml_response(response)
+
+
+def respond_distress_crisis(language: str):
+    """Hardcoded mental health crisis response with helpline — no LLM."""
+    msgs = {
+        "hi": "मैं सुन रहा हूँ। आप अकेले नहीं हैं। अभी iCall पर कॉल करिए: 9152987821. वे सुनेंगे।",
+        "en": "I hear you. You are not alone. Please call iCall right now: 9152987821. They will listen.",
+        "mr": "मी ऐकतोय. तुम्ही एकटे नाही. iCall ला कॉल करा: 9152987821.",
+        "ta": "நான் கேட்கிறேன். நீங்கள் தனியில்லை. iCall அழைக்கவும்: 9152987821.",
+    }
+    response = VoiceResponse()
+    tts_say(response, msgs.get(language, msgs["en"]), language)
+    return twiml_response(response)
+
+
+def log_distress(call_sid: str, text: str, score: float):
+    """Log elevated distress signal to DynamoDB for pattern tracking."""
+    try:
+        ts = get_call_timestamp(call_sid)
+        calls_table.update_item(
+            Key={"call_id": call_sid, "timestamp": ts},
+            UpdateExpression="SET distress_score = :s, distress_text = :t",
+            ExpressionAttributeValues={":s": str(score), ":t": text[:200]}
+        )
+    except Exception as e:
+        logger.warning(f"Failed to log distress: {e}")
+
+
+# ── Agmarknet Live Mandi Prices ──────────────────────────────
+COMMODITY_MAP = {
+    "gehu": "Wheat", "gehun": "Wheat", "गेहूं": "Wheat",
+    "chawal": "Rice", "dhaan": "Rice", "धान": "Rice", "चावल": "Rice",
+    "pyaz": "Onion", "pyaaz": "Onion", "प्याज": "Onion",
+    "aloo": "Potato", "aaloo": "Potato", "आलू": "Potato",
+    "tamatar": "Tomato", "टमाटर": "Tomato",
+    "lahsun": "Garlic", "लहसुन": "Garlic",
+    "sarson": "Mustard", "सरसों": "Mustard",
+    "makka": "Maize", "corn": "Maize",
+    "soyabean": "Soyabean", "soya": "Soyabean",
+    "cotton": "Cotton", "kapas": "Cotton", "कपास": "Cotton",
+    "ganna": "Sugarcane", "sugarcane": "Sugarcane", "गन्ना": "Sugarcane",
+}
+
+STATE_MAP = {
+    "up": "Uttar Pradesh", "uttar pradesh": "Uttar Pradesh",
+    "mp": "Madhya Pradesh", "madhya pradesh": "Madhya Pradesh",
+    "maha": "Maharashtra", "maharashtra": "Maharashtra",
+    "raj": "Rajasthan", "rajasthan": "Rajasthan",
+    "punjab": "Punjab", "haryana": "Haryana",
+    "bihar": "Bihar", "gujarat": "Gujarat",
+    "karnataka": "Karnataka", "ap": "Andhra Pradesh",
+    "telangana": "Telangana", "tn": "Tamil Nadu", "tamilnadu": "Tamil Nadu",
+}
+
+
+def fetch_mandi_price_response(query: str, language: str) -> str:
+    """Detect commodity + state from voice query, fetch Agmarknet, return spoken response."""
+    q = query.lower()
+
+    commodity_en = next((eng for kw, eng in COMMODITY_MAP.items() if kw in q), None)
+    state_en     = next((eng for kw, eng in STATE_MAP.items() if kw in q), None)
+
+    if not commodity_en:
+        # Can't identify commodity — fall back to RAG+LLM
+        return rag_pipeline(query, language)
+
+    try:
+        records = _call_agmarknet(commodity_en, state_en)
+    except Exception as e:
+        logger.warning(f"Agmarknet API error: {e}")
+        return rag_pipeline(query, language)
+
+    if not records:
+        no_data = {
+            "hi": f"आज {commodity_en} का भाव अभी उपलब्ध नहीं है। कल सुबह फिर पूछें।",
+            "mr": f"आज {commodity_en} चा भाव उपलब्ध नाही. उद्या सकाळी विचारा.",
+            "ta": f"இன்று {commodity_en} விலை கிடைக்கவில்லை. நாளை காலை கேளுங்கள்.",
+            "en": f"Today's {commodity_en} price is not available. Try tomorrow morning.",
+        }
+        return no_data.get(language, no_data["en"])
+
+    rec    = records[0]
+    modal  = rec.get("modal_price", "N/A")
+    min_p  = rec.get("min_price", "N/A")
+    max_p  = rec.get("max_price", "N/A")
+    market = rec.get("market", "")
+    state_name = rec.get("state", state_en or "")
+
+    if language == "hi":
+        return (f"आज {state_name} के {market} मंडी में {commodity_en} का भाव "
+                f"₹{modal} प्रति क्विंटल चल रहा है। "
+                f"अधिकतम ₹{max_p}, न्यूनतम ₹{min_p}।")
+    if language == "mr":
+        return (f"आज {state_name} मधील {market} गंजीत {commodity_en} चा भाव "
+                f"₹{modal} प्रति क्विंटल आहे. कमाल ₹{max_p}, किमान ₹{min_p}.")
+    if language == "ta":
+        return (f"இன்று {state_name}ல் {market} சந்தையில் {commodity_en} விலை "
+                f"₹{modal} குவிண்டல். அதிகபட்சம் ₹{max_p}, குறைந்தபட்சம் ₹{min_p}.")
+    return (f"Today in {market}, {state_name}: {commodity_en} is at ₹{modal}/quintal. "
+            f"Max: ₹{max_p}, Min: ₹{min_p}.")
+
+
+def _call_agmarknet(commodity: str, state: str = None) -> list:
+    """Call data.gov.in Agmarknet API. Returns list of price records."""
+    if not DATA_GOV_API_KEY:
+        logger.info("No DATA_GOV_API_KEY set — skipping Agmarknet")
+        return []
+    url = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
+    params = {
+        "api-key": DATA_GOV_API_KEY,
+        "format": "json",
+        "filters[commodity]": commodity,
+        "limit": 3,
+    }
+    if state:
+        params["filters[state]"] = state
+    r = requests.get(url, params=params, timeout=5)
+    r.raise_for_status()
+    return r.json().get("records", [])
 
 
 # ── RAG Pipeline (with conversation memory) ──────────────────
@@ -501,24 +708,14 @@ def _ask_openai(user_msg: str, history: list) -> str:
 
 
 def _ask_bedrock(user_msg: str) -> str:
-    """Fallback: call Bedrock (no conversation memory — stateless)."""
-    messages = [
-        {"role": "user", "content": [{"text": f"{SYSTEM_PROMPT}\n\n{user_msg}"}]}
-    ]
-    response = bedrock.invoke_model(
+    """Fallback: Bedrock Converse API — model-agnostic, works with Llama 3.3 70B."""
+    response = bedrock.converse(
         modelId=BEDROCK_MODEL_ID,
-        body=json.dumps({
-            "messages": messages,
-            "inferenceConfig": {
-                "max_new_tokens": 250,
-                "temperature": 0.5
-            }
-        }),
-        contentType="application/json",
-        accept="application/json"
+        system=[{"text": SYSTEM_PROMPT}],
+        messages=[{"role": "user", "content": [{"text": user_msg}]}],
+        inferenceConfig={"maxTokens": 250, "temperature": 0.5}
     )
-    result = json.loads(response["body"].read())
-    return result["output"]["message"]["content"][0]["text"].strip()
+    return response["output"]["message"]["content"][0]["text"].strip()
 
 
 # ── Helpers ──────────────────────────────────────────────────

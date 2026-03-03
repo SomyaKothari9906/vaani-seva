@@ -94,6 +94,7 @@ def deploy_lambda(zip_path, role_arn):
         "SARVAM_API_KEY":            os.environ.get("SARVAM_API_KEY", ""),
         "OPENAI_API_KEY":            os.environ.get("OPENAI_API_KEY", ""),
         "LLM_PROVIDER":             os.environ.get("LLM_PROVIDER", "bedrock"),
+        "DATA_GOV_API_KEY":         os.environ.get("DATA_GOV_API_KEY", ""),
         "LOG_LEVEL":                "INFO",
     }
 
