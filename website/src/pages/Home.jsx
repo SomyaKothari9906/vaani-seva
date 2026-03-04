@@ -65,16 +65,14 @@ export default function Home() {
           aria-hidden="true"
         />
 
-        {/* Left gradient: permanently dark on left 45% */}
+        {/* Left gradient: warm cinematic — right side breathes */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'linear-gradient(to right, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.88) 25%, rgba(0,0,0,0.55) 42%, rgba(0,0,0,0) 58%)',
+              'linear-gradient(to right, rgba(15,15,15,0.82) 0%, rgba(0,0,0,0.05) 48%)',
           }}
         />
-        {/* Subtle overall tint */}
-        <div className="absolute inset-0 bg-black/20 pointer-events-none" />
 
         <div className="relative z-10 flex items-center" style={{ minHeight: '100vh' }}>
           <div className="w-full max-w-7xl mx-auto px-6 md:px-12 lg:px-20 py-24">
@@ -82,8 +80,8 @@ export default function Home() {
 
               {/* Pill badge */}
               <div className="inline-flex items-center gap-2 bg-black/40 backdrop-blur-sm border border-white/15 rounded-full px-4 py-1.5 mb-7">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse flex-shrink-0" />
-                <span className="text-white/85 text-sm font-medium tracking-wide">Live Now \u2014 Call Anytime</span>
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-live-dot flex-shrink-0" />
+                <span className="text-white/85 text-sm font-medium tracking-wide">Live Now — Call Anytime</span>
               </div>
 
               {/* Main headline */}
@@ -103,7 +101,7 @@ export default function Home() {
               >
                 440 million Indians have no access to AI.
                 <br />
-                VaaniSeva changes that \u2014 one phone call at a time.
+                VaaniSeva changes that — one phone call at a time.
               </p>
 
               {/* Language ticker */}
@@ -154,7 +152,7 @@ export default function Home() {
                   style={{ background: '#10b981', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
                 >
                   <Phone size={17} />
-                  Call Now \u2014 +1 260 204 8966
+                  Call Now — +1 260 204 8966
                 </a>
                 <Link
                   to="/try"
@@ -242,7 +240,7 @@ export default function Home() {
             <p className="text-sm font-semibold text-accent-500 uppercase tracking-wider mb-2">Knowledge Base</p>
             <h2 className="section-title text-center">What Can You Ask VaaniSeva?</h2>
             <p className="section-subtitle mx-auto mt-4">
-              From crop prices to health coverage to legal rights \u2014 ask anything, in your language, right now.
+              From crop prices to health coverage to legal rights — ask anything, in your language, right now.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -270,7 +268,7 @@ export default function Home() {
           </h2>
           <p className="text-lg text-white/80 mb-8 max-w-lg mx-auto">
             Join 10,000+ Indians already using VaaniSeva.
-            No signup needed \u2014 just call.
+            No signup needed — just call.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <a href="tel:+12602048966" className="inline-flex items-center gap-2 px-8 py-4 bg-white text-accent-600 font-bold rounded-xl text-lg hover:bg-gray-50 transition-colors shadow-lg">
@@ -317,11 +315,11 @@ export default function Home() {
               <p className="text-sm text-content-secondary leading-relaxed">
                 Built by <strong>Team Prayas</strong> for the <strong>AI for Bharat Hackathon 2026</strong>.
               </p>
-              <p className="text-sm text-content-secondary mt-2">Problem Statement 3 \u2014 Voice AI for Rural India</p>
+              <p className="text-sm text-content-secondary mt-2">Problem Statement 3 — Voice AI for Rural India</p>
             </div>
           </div>
           <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-content-tertiary">\u00a9 2026 VaaniSeva \u2014 Team Prayas. All rights reserved.</p>
+            <p className="text-xs text-content-tertiary">© 2026 VaaniSeva — Team Prayas. All rights reserved.</p>
             <span className="text-xs text-content-tertiary">Powered by AWS Bedrock + Sarvam AI + Twilio</span>
           </div>
         </div>

@@ -37,15 +37,15 @@ export default function Navbar() {
               <Phone size={18} className="text-white" />
             </div>
             <div className="flex flex-col leading-none">
-              <span className={`font-hindi font-bold text-lg tracking-tight ${
+              <span className={`font-bold text-lg tracking-tight ${
                 scrolled || !isHome ? 'text-content-primary' : 'text-white'
               }`}>
-                वाणीसेवा
-              </span>
-              <span className={`text-[10px] font-medium tracking-wider uppercase ${
-                scrolled || !isHome ? 'text-content-tertiary' : 'text-white/60'
-              }`}>
                 VaaniSeva
+              </span>
+              <span className={`font-hindi text-[10px] font-medium tracking-wide ${
+                scrolled || !isHome ? 'text-content-tertiary' : 'text-white/50'
+              }`}>
+                वाणीसेवा
               </span>
             </div>
           </Link>
