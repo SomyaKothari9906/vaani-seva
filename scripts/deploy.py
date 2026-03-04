@@ -58,11 +58,14 @@ def package_lambda():
     shutil.rmtree("build", ignore_errors=True)
     os.makedirs(pkg_dir, exist_ok=True)
 
-    # Install deps into package directory (boto3 excluded — Lambda has it built-in)
-    run(f"pip install twilio requests -t {pkg_dir} -q")
+    # Install deps into package directory with Linux-compatible wheels (Lambda runs on Amazon Linux)
+    # --platform manylinux2014_x86_64 ensures compiled C extensions match Lambda's Linux runtime
+    run(f"pip install twilio requests pyjwt --platform manylinux2014_x86_64 --only-binary=:all: --python-version 311 -t {pkg_dir} -q")
 
-    # Copy handler
+    # Copy handler + connect_handler
     shutil.copy("lambdas/call_handler/handler.py", f"{pkg_dir}/handler.py")
+    if os.path.exists("lambdas/call_handler/connect_handler.py"):
+        shutil.copy("lambdas/call_handler/connect_handler.py", f"{pkg_dir}/connect_handler.py")
 
     # Zip it
     zip_path = "build/call_handler.zip"
@@ -84,6 +87,7 @@ def deploy_lambda(zip_path, role_arn):
         "DYNAMODB_CALLS_TABLE":     os.environ["DYNAMODB_CALLS_TABLE"],
         "DYNAMODB_KNOWLEDGE_TABLE": os.environ["DYNAMODB_KNOWLEDGE_TABLE"],
         "DYNAMODB_VECTORS_TABLE":   os.environ["DYNAMODB_VECTORS_TABLE"],
+        "DYNAMODB_USERS_TABLE":     os.environ.get("DYNAMODB_USERS_TABLE", "vaaniseva-users"),
         "S3_DOCUMENTS_BUCKET":      os.environ["S3_DOCUMENTS_BUCKET"],
         "BEDROCK_MODEL_ID":         os.environ["BEDROCK_MODEL_ID"],
         "BEDROCK_EMBEDDING_MODEL_ID": os.environ["BEDROCK_EMBEDDING_MODEL_ID"],
@@ -94,7 +98,8 @@ def deploy_lambda(zip_path, role_arn):
         "SARVAM_API_KEY":            os.environ.get("SARVAM_API_KEY", ""),
         "OPENAI_API_KEY":            os.environ.get("OPENAI_API_KEY", ""),
         "LLM_PROVIDER":             os.environ.get("LLM_PROVIDER", "bedrock"),
-        "DATA_GOV_API_KEY":         os.environ.get("DATA_GOV_API_KEY", ""),
+        "JWT_SECRET":                os.environ.get("JWT_SECRET", "vaaniseva-hackathon-secret-key-2024"),
+        "DATA_GOV_API_KEY":          os.environ.get("DATA_GOV_API_KEY", ""),
         "LOG_LEVEL":                "INFO",
     }
 
@@ -185,6 +190,39 @@ def create_api_gateway(lambda_arn):
         )
         print(f"    ✓ POST {path}")
 
+    def add_options_method(resource_id, path):
+        """Add OPTIONS method for CORS preflight."""
+        try:
+            apigw_client.put_method(
+                restApiId=api_id, resourceId=resource_id,
+                httpMethod="OPTIONS", authorizationType="NONE"
+            )
+        except apigw_client.exceptions.ConflictException:
+            pass
+        apigw_client.put_integration(
+            restApiId=api_id, resourceId=resource_id, httpMethod="OPTIONS",
+            type="AWS_PROXY",
+            integrationHttpMethod="POST",
+            uri=f"arn:aws:apigateway:{AWS_REGION}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
+        )
+        print(f"    ✓ OPTIONS {path}")
+
+    def add_get_method(resource_id, path):
+        try:
+            apigw_client.put_method(
+                restApiId=api_id, resourceId=resource_id,
+                httpMethod="GET", authorizationType="NONE"
+            )
+        except apigw_client.exceptions.ConflictException:
+            pass
+        apigw_client.put_integration(
+            restApiId=api_id, resourceId=resource_id, httpMethod="GET",
+            type="AWS_PROXY",
+            integrationHttpMethod="POST",
+            uri=f"arn:aws:apigateway:{AWS_REGION}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
+        )
+        print(f"    ✓ GET {path}")
+
     # Create /voice → /voice/incoming, /voice/language, /voice/gather
     voice_id    = get_or_create_resource(root_id, "voice")
     incoming_id = get_or_create_resource(voice_id, "incoming")
@@ -194,6 +232,35 @@ def create_api_gateway(lambda_arn):
     add_post_method(incoming_id, "/voice/incoming")
     add_post_method(language_id, "/voice/language")
     add_post_method(gather_id,   "/voice/gather")
+
+    # Create /chat
+    chat_id = get_or_create_resource(root_id, "chat")
+    add_post_method(chat_id, "/chat")
+    add_options_method(chat_id, "/chat")
+
+    # Create /call/initiate
+    call_id     = get_or_create_resource(root_id, "call")
+    initiate_id = get_or_create_resource(call_id, "initiate")
+    add_post_method(initiate_id, "/call/initiate")
+    add_options_method(initiate_id, "/call/initiate")
+
+    # Create /auth → /auth/login, /auth/register
+    auth_id     = get_or_create_resource(root_id, "auth")
+    login_id    = get_or_create_resource(auth_id, "login")
+    register_id = get_or_create_resource(auth_id, "register")
+    add_post_method(login_id,    "/auth/login")
+    add_post_method(register_id, "/auth/register")
+    add_options_method(login_id,    "/auth/login")
+    add_options_method(register_id, "/auth/register")
+
+    # Create /profile, /profile/history
+    profile_id  = get_or_create_resource(root_id, "profile")
+    history_id  = get_or_create_resource(profile_id, "history")
+    add_get_method(profile_id,   "/profile")
+    add_post_method(profile_id,  "/profile")
+    add_options_method(profile_id, "/profile")
+    add_get_method(history_id,   "/profile/history")
+    add_options_method(history_id, "/profile/history")
 
     # Grant API Gateway permission to invoke Lambda
     try:

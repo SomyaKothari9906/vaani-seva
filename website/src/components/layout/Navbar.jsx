@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Phone, Menu, X } from 'lucide-react'
+import { Phone, Menu, X, User, LogIn } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const { isLoggedIn, user } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -83,6 +85,43 @@ export default function Navbar() {
               Try VaaniSeva
             </Link>
 
+            <Link
+              to="/pricing"
+              className={`text-sm font-medium transition-colors ${
+                scrolled || !isHome
+                  ? 'text-content-secondary hover:text-content-primary'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              Pricing
+            </Link>
+
+            {isLoggedIn ? (
+              <Link
+                to="/profile"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                  scrolled || !isHome
+                    ? 'text-content-secondary hover:text-content-primary'
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                <User size={14} />
+                {user?.name || 'Profile'}
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                  scrolled || !isHome
+                    ? 'text-content-secondary hover:text-content-primary'
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                <LogIn size={14} />
+                Login
+              </Link>
+            )}
+
             <a
               href="tel:+12602048966"
               className="btn-primary text-sm !px-4 !py-2"
@@ -116,9 +155,21 @@ export default function Navbar() {
             <a href="/#schemes" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2">
               Schemes
             </a>
-            <Link to="/try" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2">
+            <Link to="/try" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
               Try VaaniSeva
             </Link>
+            <Link to="/pricing" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
+              Pricing
+            </Link>
+            {isLoggedIn ? (
+              <Link to="/profile" className="flex items-center gap-2 text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
+                <User size={14} /> {user?.name || 'Profile'}
+              </Link>
+            ) : (
+              <Link to="/login" className="flex items-center gap-2 text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
+                <LogIn size={14} /> Login
+              </Link>
+            )}
             <a href="tel:+12602048966" className="btn-primary text-sm w-full mt-2">
               <Phone size={14} /> Call Now
             </a>

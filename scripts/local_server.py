@@ -14,34 +14,32 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, request
+from flask_cors import CORS
 from handler import lambda_handler
 
 app = Flask(__name__)
+CORS(app)  # Allow all origins for local dev
 
-@app.route("/voice/<path:subpath>", methods=["GET", "POST"])
-def voice_proxy(subpath):
+
+def _proxy(path):
     """Translate Flask request → Lambda event → Lambda response → Flask response."""
-
-    # Build body from form data (Twilio sends application/x-www-form-urlencoded)
     if request.method == "POST":
         body = request.get_data(as_text=True)
     else:
         body = ""
 
-    # Simulate API Gateway event
     event = {
-        "path": f"/voice/{subpath}",
+        "path": f"/{path}",
         "httpMethod": request.method,
         "body": body,
         "queryStringParameters": dict(request.args),
         "headers": dict(request.headers),
         "requestContext": {
             "domainName": request.host,
-            "stage": "",  # no stage prefix for local
+            "stage": "",
         },
     }
 
-    # Call the Lambda handler
     result = lambda_handler(event, None)
 
     return (
@@ -51,13 +49,45 @@ def voice_proxy(subpath):
     )
 
 
+@app.route("/voice/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
+def voice_proxy(subpath):
+    return _proxy(f"voice/{subpath}")
+
+
+@app.route("/chat", methods=["POST", "OPTIONS"])
+def chat_proxy():
+    return _proxy("chat")
+
+
+@app.route("/call/initiate", methods=["POST", "OPTIONS"])
+def call_initiate_proxy():
+    return _proxy("call/initiate")
+
+
+@app.route("/auth/<path:subpath>", methods=["POST", "OPTIONS"])
+def auth_proxy(subpath):
+    return _proxy(f"auth/{subpath}")
+
+
+@app.route("/profile", methods=["GET", "POST", "OPTIONS"])
+@app.route("/profile/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
+def profile_proxy(subpath=""):
+    path = f"profile/{subpath}" if subpath else "profile"
+    return _proxy(path)
+
+
+@app.route("/voice/token", methods=["GET", "OPTIONS"])
+def voice_token_proxy():
+    return _proxy("voice/token")
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return "OK", 200
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8000))
 
     # Start ngrok tunnel
     try:

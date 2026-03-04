@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Phone, ArrowRight, Mic, MessageCircle, Globe, Shield, Clock, Users } from 'lucide-react'
+import { Phone, ArrowRight, Mic, MessageCircle, Globe, Shield, Clock, Users, X } from 'lucide-react'
+import { CallMeBack } from './TryPage'
 
 const TICKER_TEXT =
   'हिंदी में उपलब्ध  ·  मराठीत उपलब्ध  ·  தமிழில் கிடைக்கும்  ·  Available in English  ·  తెలుగులో అందుబాటులో  ·  ಕನ್ನಡದಲ್ಲಿ ಲಭ್ಯವಿದೆ  ·  বাংলায় পাওয়া যাচ্ছে  ·'
@@ -35,6 +36,7 @@ const stats = [
 
 export default function Home() {
   const videoRef = useRef(null)
+  const [showCallWidget, setShowCallWidget] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
@@ -245,16 +247,16 @@ export default function Home() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {schemes.map((s) => (
-              <div key={s.name} className="card flex items-start gap-4 hover:border-accent-200 cursor-default">
-                <div className="w-11 h-11 bg-accent-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
+              <Link key={s.name} to={`/try?q=${encodeURIComponent(s.name + ' के बारे में बताइए')}`} className="card flex items-start gap-4 hover:border-accent-200 cursor-pointer group">
+                <div className="w-11 h-11 bg-accent-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-accent-100 transition-colors">
                   {s.icon}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-content-primary text-sm">{s.name}</h3>
+                  <h3 className="font-semibold text-content-primary text-sm group-hover:text-accent-600 transition-colors">{s.name}</h3>
                   <p className="font-hindi text-xs text-accent-600">{s.hindi}</p>
                   <p className="text-xs text-content-secondary mt-1 leading-relaxed">{s.desc}</p>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -282,6 +284,34 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* === STICKY CALL ME BACK WIDGET === */}
+      {!showCallWidget && (
+        <button
+          onClick={() => setShowCallWidget(true)}
+          className="fixed bottom-6 right-6 z-50 bg-gradient-accent text-white px-5 py-3 rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 font-semibold text-sm"
+        >
+          <Phone size={18} />
+          Call Me Back
+        </button>
+      )}
+
+      {showCallWidget && (
+        <div className="fixed bottom-6 right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up">
+          <div className="bg-gradient-accent px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <Phone size={16} />
+              <span className="font-semibold text-sm">Call Me Back</span>
+            </div>
+            <button onClick={() => setShowCallWidget(false)} className="text-white/80 hover:text-white">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-4">
+            <CallMeBack compact />
+          </div>
+        </div>
+      )}
 
       {/* === FOOTER === */}
       <footer className="bg-white border-t border-gray-100">
