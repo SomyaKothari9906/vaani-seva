@@ -169,7 +169,7 @@ def sarvam_tts(text: str, language: str) -> str | None:
             "https://api.sarvam.ai/text-to-speech",
             json=payload,
             headers={"api-subscription-key": SARVAM_API_KEY},
-            timeout=8
+            timeout=3
         )
         resp.raise_for_status()
         audio_bytes = base64.b64decode(resp.json()["audios"][0])
@@ -338,7 +338,9 @@ def handle_language_select(params):
     )
     tts_say(gather, prompt, language)
     response.append(gather)
-    tts_say(response, fallback, language)
+    # Use Polly directly for the no-input fallback — avoids a second Sarvam TTS timeout
+    cfg = LANG_CONFIG[language]
+    response.say(fallback, voice=cfg["polly_voice"])
     return twiml_response(response)
 
 
@@ -422,7 +424,8 @@ def handle_gather(params):
     )
     tts_say(gather, combined_msg, language)
     response.append(gather)
-    tts_say(response, goodbye, language)
+    # Use Polly directly for the goodbye fallback — avoids a second Sarvam TTS timeout
+    response.say(goodbye, voice=cfg["polly_voice"])
 
     threading.Thread(
         target=log_query,
@@ -753,9 +756,11 @@ def log_query(call_sid: str, query: str, answer: str, language: str):
         timestamp = get_call_timestamp(call_sid)
         calls_table.update_item(
             Key={"call_id": call_sid, "timestamp": timestamp},
-            UpdateExpression="SET queries_count = queries_count + :one, conversation_history = list_append(conversation_history, :entry)",
+            UpdateExpression="SET queries_count = if_not_exists(queries_count, :zero) + :one, conversation_history = list_append(if_not_exists(conversation_history, :empty), :entry)",
             ExpressionAttributeValues={
+                ":zero": 0,
                 ":one": 1,
+                ":empty": [],
                 ":entry": [{"query": query, "answer": answer, "language": language,
                             "ts": int(datetime.now().timestamp())}]
             }
