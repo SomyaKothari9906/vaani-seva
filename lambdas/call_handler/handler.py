@@ -792,13 +792,14 @@ def handle_incoming(params):
     action_url = f"{BASE_URL}/voice/language" if BASE_URL else "/voice/language"
     gather = Gather(num_digits=1, action=action_url, method="POST", timeout=10)
 
-    # Pre-recorded Sarvam TTS welcome audio from S3
-    welcome_url = s3_client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": S3_BUCKET, "Key": "static-audio/welcome_combined.wav"},
-        ExpiresIn=3600,
-    )
-    gather.play(welcome_url)
+    # Play pre-recorded welcome clips sequentially: intro → Hindi → Marathi → Tamil → English
+    for key in ["welcome_intro", "welcome_hi", "welcome_mr", "welcome_ta", "welcome_en"]:
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": S3_BUCKET, "Key": f"static-audio/{key}.wav"},
+            ExpiresIn=3600,
+        )
+        gather.play(url)
     response.append(gather)
 
     # Pre-recorded Sarvam TTS no-input fallback from S3
