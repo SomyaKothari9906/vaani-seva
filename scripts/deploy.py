@@ -97,7 +97,7 @@ def deploy_lambda(zip_path, role_arn):
         "TWILIO_API_KEY_SID":       os.environ.get("TWILIO_API_KEY_SID", ""),
         "TWILIO_API_KEY_SECRET":    os.environ.get("TWILIO_API_KEY_SECRET", ""),
         "TWILIO_TWIML_APP_SID":     os.environ.get("TWILIO_TWIML_APP_SID", ""),
-        "API_BASE_URL":             os.environ.get("API_BASE_URL", ""),
+        "API_BASE_URL":             os.environ.get("API_BASE_URL", "https://e1oy2y9gjj.execute-api.us-east-1.amazonaws.com/prod"),
         "BHASHINI_USER_ID":         os.environ.get("BHASHINI_USER_ID", ""),
         "BHASHINI_API_KEY":         os.environ.get("BHASHINI_API_KEY", ""),
         "SARVAM_API_KEY":            os.environ.get("SARVAM_API_KEY", ""),

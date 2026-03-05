@@ -316,7 +316,7 @@ def handle_call_initiate(event):
 
         # Always use the deployed production API URL for Twilio webhooks
         # (localhost is never reachable from Twilio's servers)
-        prod_url = os.environ.get("API_BASE_URL", "https://e1oy2y9gjj.execute-api.us-east-1.amazonaws.com/prod")
+        prod_url = os.environ.get("API_BASE_URL", "").strip() or "https://e1oy2y9gjj.execute-api.us-east-1.amazonaws.com/prod"
         call = twilio_client.calls.create(
             to=phone_number,
             from_=twilio_phone,
