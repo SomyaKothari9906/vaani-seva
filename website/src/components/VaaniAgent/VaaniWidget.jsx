@@ -262,18 +262,20 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
         <div className="vaani-floating-btn" onClick={() => setIsOpen(true)}>
           <div className="vaani-avatar-preview">
             <Canvas
-              camera={{ position: [0, 1.5, 0.8], fov: 25 }}
-              onCreated={({ camera }) => camera.lookAt(0.02, 1.56, 0)}
+              camera={{ position: [0, 1.64, 0.5], fov: 20 }}
+              onCreated={({ camera }) => camera.lookAt(0.05, 1.63, 0)}
             >
               <ambientLight intensity={1} />
               <directionalLight position={[2, 2, 2]} />
               <ErrorBoundary>
                 <Suspense fallback={null}>
-                  <AvatarModel modelUrl="/models/model_female.glb" mini={true} showWaistUp />
+                  <AvatarModel modelUrl="/models/vaani.glb" mini={true} showWaistUp />
                 </Suspense>
               </ErrorBoundary>
             </Canvas>
           </div>
+          <div className="vaani-online-dot"></div>
+          <div className="vaani-avatar-badge">वाणी AI</div>
           <div className="vaani-pulse"></div>
         </div>
       ) : (
@@ -301,11 +303,11 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
           <div className="vaani-content">
             {mode === 'agent' ? (
               <div className="vaani-3d-view">
-                <Canvas camera={{ position: [0, 1.55, 1.3], fov: 25 }}>
+                <Canvas camera={{ position: [0, 1.55, 1.2], fov: 28 }}>
                   <ambientLight intensity={0.9} />
                   <directionalLight position={[3, 3, 3]} />
                   <OrbitControls
-                    target={[0, 1.5, 0]}
+                    target={[0, 1.52, 0]}
                     enableZoom={false}
                     enablePan={false}
                     minPolarAngle={Math.PI / 2.5}
@@ -315,7 +317,7 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
                   />
                   <ErrorBoundary>
                     <Suspense fallback={null}>
-                      <AvatarModel modelUrl="/models/model_female.glb" showWaistUp />
+                      <AvatarModel modelUrl="/models/vaani.glb" showWaistUp />
                     </Suspense>
                   </ErrorBoundary>
                 </Canvas>

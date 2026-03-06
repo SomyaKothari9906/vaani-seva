@@ -1,37 +1,44 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Phone, ArrowRight, Mic, MessageCircle, Globe, Shield, Clock, Users, X } from 'lucide-react'
+import { Phone, ArrowRight, Mic, MessageCircle, X } from 'lucide-react'
+import {
+  PMKisanIcon, AyushmanIcon, MGNREGAIcon, PMAwasIcon, SukanyaIcon,
+  UjjwalaIcon, JanDhanIcon, MudraIcon, AtalPensionIcon, FasalBimaIcon,
+  MentalHealthIcon, MandiIcon,
+  ShieldStarIcon, ClockRoundIcon, MultiLanguageIcon, IndiaPeopleIcon,
+  PhoneWavesIcon, MicSpeakIcon,
+} from '../components/icons/VaaniIcons'
 import { CallMeBack } from './TryPage'
 
 const TICKER_TEXT =
   'हिंदी में उपलब्ध  ·  मराठीत उपलब्ध  ·  தமிழில் கிடைக்கும்  ·  Available in English  ·  తెలుగులో అందుబాటులో  ·  ಕನ್ನಡದಲ್ಲಿ ಲಭ್ಯವಿದೆ  ·  বাংলায় পাওয়া যাচ্ছে  ·'
 
 const schemes = [
-  { name: 'PM-Kisan',            hindi: 'पीएम किसान',          desc: 'Direct income support of ₹6,000/year to farmer families',                   icon: '🌾' },
-  { name: 'Ayushman Bharat',     hindi: 'आयुष्मान भारत',       desc: 'Free health coverage up to ₹5 lakh per family per year',                    icon: '🏥' },
-  { name: 'MGNREGA',             hindi: 'मनरेगा',              desc: '100 days guaranteed employment for rural households',                        icon: '⚒️'  },
-  { name: 'PM Awas Yojana',      hindi: 'पीएम आवास योजना',     desc: 'Affordable housing for economically weaker sections',                       icon: '🏠' },
-  { name: 'Sukanya Samriddhi',   hindi: 'सुकन्या समृद्धि',     desc: 'Savings scheme for girl child education and marriage',                      icon: '👧' },
-  { name: 'PM Ujjwala',          hindi: 'पीएम उज्ज्वला',       desc: 'Free LPG connections for BPL households',                                   icon: '🔥' },
-  { name: 'Jan Dhan Yojana',     hindi: 'जन धन योजना',         desc: 'Zero-balance bank accounts with insurance cover',                           icon: '🏦' },
-  { name: 'PM Mudra Yojana',     hindi: 'पीएम मुद्रा योजना',    desc: 'Collateral-free loans up to ₹10 lakh for small businesses',                icon: '💼' },
-  { name: 'Atal Pension',        hindi: 'अटल पेंशन योजना',     desc: 'Guaranteed pension of ₹1,000-5,000/month after 60',                        icon: '👴' },
-  { name: 'Fasal Bima Yojana',   hindi: 'फसल बीमा योजना',      desc: 'Crop insurance protection for farmers against natural disasters',           icon: '🛡️' },
-  { name: 'iCall Mental Health', hindi: 'मानसिक स्वास्थ्य',    desc: 'Free counselling helpline — speak to someone who listens',                  icon: '💚' },
-  { name: 'Mandi Prices Live',   hindi: 'मंडी भाव',            desc: 'Live crop market prices from 3,000+ mandis across India, updated daily',   icon: '📊' },
+  { name: 'PM-Kisan',            hindi: 'पीएम किसान',          desc: 'Direct income support of ₹6,000/year to farmer families',                   icon: <PMKisanIcon size={24} />      },
+  { name: 'Ayushman Bharat',     hindi: 'आयुष्मान भारत',       desc: 'Free health coverage up to ₹5 lakh per family per year',                    icon: <AyushmanIcon size={24} />     },
+  { name: 'MGNREGA',             hindi: 'मनरेगा',              desc: '100 days guaranteed employment for rural households',                        icon: <MGNREGAIcon size={24} />      },
+  { name: 'PM Awas Yojana',      hindi: 'पीएम आवास योजना',     desc: 'Affordable housing for economically weaker sections',                       icon: <PMAwasIcon size={24} />       },
+  { name: 'Sukanya Samriddhi',   hindi: 'सुकन्या समृद्धि',     desc: 'Savings scheme for girl child education and marriage',                      icon: <SukanyaIcon size={24} />      },
+  { name: 'PM Ujjwala',          hindi: 'पीएम उज्ज्वला',       desc: 'Free LPG connections for BPL households',                                   icon: <UjjwalaIcon size={24} />      },
+  { name: 'Jan Dhan Yojana',     hindi: 'जन धन योजना',         desc: 'Zero-balance bank accounts with insurance cover',                           icon: <JanDhanIcon size={24} />      },
+  { name: 'PM Mudra Yojana',     hindi: 'पीएम मुद्रा योजना',    desc: 'Collateral-free loans up to ₹10 lakh for small businesses',                icon: <MudraIcon size={24} />        },
+  { name: 'Atal Pension',        hindi: 'अटल पेंशन योजना',     desc: 'Guaranteed pension of ₹1,000-5,000/month after 60',                        icon: <AtalPensionIcon size={24} />  },
+  { name: 'Fasal Bima Yojana',   hindi: 'फसल बीमा योजना',      desc: 'Crop insurance protection for farmers against natural disasters',           icon: <FasalBimaIcon size={24} />    },
+  { name: 'iCall Mental Health', hindi: 'मानसिक स्वास्थ्य',    desc: 'Free counselling helpline — speak to someone who listens',                  icon: <MentalHealthIcon size={24} /> },
+  { name: 'Mandi Prices Live',   hindi: 'मंडी भाव',            desc: 'Live crop market prices from 3,000+ mandis across India, updated daily',   icon: <MandiIcon size={24} />        },
 ]
 
 const steps = [
-  { num: '01', title: 'Call from Any Phone',    desc: 'Dial from a basic keypad phone, smartphone, or anything in between. No app, no data, no setup.',        icon: Phone        },
-  { num: '02', title: 'Speak in Your Language', desc: 'Hindi, Marathi, Tamil, English — speak naturally in your own words and dialect.',                        icon: Mic          },
-  { num: '03', title: 'Get Verified Answers',   desc: 'AI answers in under 4 seconds. Every fact is verified by human experts before it reaches you.',          icon: MessageCircle },
+  { num: '01', title: 'Call from Any Phone',    desc: 'Dial from a basic keypad phone, smartphone, or anything in between. No app, no data, no setup.',        icon: PhoneWavesIcon },
+  { num: '02', title: 'Speak in Your Language', desc: 'Hindi, Marathi, Tamil, English — speak naturally in your own words and dialect.',                        icon: MicSpeakIcon   },
+  { num: '03', title: 'Get Verified Answers',   desc: 'AI answers in under 4 seconds. Every fact is verified by human experts before it reaches you.',          icon: MessageCircle  },
 ]
 
 const stats = [
-  { value: '30+',   label: 'Government Schemes',     icon: Shield },
-  { value: '24/7',  label: 'Always Available',        icon: Clock  },
-  { value: '4',     label: 'Languages Supported',     icon: Globe  },
-  { value: '500M+', label: 'Indians We Aim to Serve', icon: Users  },
+  { value: '30+',   label: 'Government Schemes',     icon: ShieldStarIcon      },
+  { value: '24/7',  label: 'Always Available',        icon: ClockRoundIcon      },
+  { value: '4',     label: 'Languages Supported',     icon: MultiLanguageIcon   },
+  { value: '500M+', label: 'Indians We Aim to Serve', icon: IndiaPeopleIcon     },
 ]
 
 export default function Home() {
@@ -289,7 +296,7 @@ export default function Home() {
       {!showCallWidget && (
         <button
           onClick={() => setShowCallWidget(true)}
-          className="fixed bottom-6 right-6 z-50 bg-gradient-accent text-white px-5 py-3 rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 font-semibold text-sm"
+          className="fixed bottom-6 right-[112px] z-50 bg-gradient-accent text-white px-5 py-3 rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 font-semibold text-sm"
         >
           <Phone size={18} />
           Call Me Back
@@ -297,7 +304,7 @@ export default function Home() {
       )}
 
       {showCallWidget && (
-        <div className="fixed bottom-6 right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up">
+        <div className="fixed bottom-6 right-[112px] z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up">
           <div className="bg-gradient-accent px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-white">
               <Phone size={16} />

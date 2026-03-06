@@ -16,7 +16,7 @@ import * as THREE from 'three'
  * Ready Player Me / Mixamo .glb that has standard morph targets.
  */
 export default function AvatarModel({
-  modelUrl = '/models/model_female.glb',
+  modelUrl = '/models/vaani.glb',
   scale = 1,
   position = [0, 0, 0],
   mini = false,
@@ -26,6 +26,8 @@ export default function AvatarModel({
   const { scene, animations } = gltf
   const mixerRef = useRef(null)
   const eyeBonesRef = useRef({ left: [], right: [] })
+  const headBoneRef = useRef(null)
+  const jawBoneRef = useRef(null)
   const idleTimeRef = useRef(0)
   const blinkTimerRef = useRef(0)
   const actionsRef = useRef({})
@@ -70,16 +72,23 @@ export default function AvatarModel({
     }
   }, [animations, scene])
 
-  // ── Find eye bones ──────────────────────────────────
+  // ── Find eye/head/jaw bones ─────────────────────────
   useEffect(() => {
     scene.traverse((node) => {
       if (node.isBone) {
         const n = node.name.toLowerCase()
+        console.log('BONE:', node.name)
         if (n.includes('lefteye') || n === 'eyeleft' || n === 'eye_l' || n.includes('eye.l')) {
           eyeBonesRef.current.left.push(node)
         }
         if (n.includes('righteye') || n === 'eyeright' || n === 'eye_r' || n.includes('eye.r')) {
           eyeBonesRef.current.right.push(node)
+        }
+        if ((n === 'head' || n === 'mixamorighead' || n.includes('head')) && !headBoneRef.current) {
+          headBoneRef.current = node
+        }
+        if ((n === 'jaw' || n.includes('jaw') || n.includes('lowerjaw')) && !jawBoneRef.current) {
+          jawBoneRef.current = node
         }
       }
     })
@@ -209,6 +218,12 @@ export default function AvatarModel({
     const breathe = 1 + Math.sin(idleTimeRef.current * 1.5) * 0.008
     scene.scale.setScalar(scale * breathe)
 
+    // Head sway
+    if (headBoneRef.current) {
+      const swayY = Math.sin(idleTimeRef.current * (Math.PI * 2 / 3)) * 0.035
+      headBoneRef.current.rotation.y = THREE.MathUtils.lerp(headBoneRef.current.rotation.y, swayY, 0.05)
+    }
+
     // Blinking
     if (blinkTimerRef.current > 4 + Math.random() * 4) {
       blinkTimerRef.current = 0
@@ -216,7 +231,7 @@ export default function AvatarModel({
       scene.traverse((node) => {
         if (node.isMesh && node.morphTargetDictionary) {
           const dict = node.morphTargetDictionary
-          const leftIdx = dict['eyesClosed'] || dict['eyeBlinkLeft'] || dict['eyeBlink_L'] || dict['Blink'] || dict['blink']
+          const leftIdx = dict['eyesClosed'] ?? dict['eyeBlinkLeft'] ?? dict['eyeBlink_L'] ?? dict['Blink'] ?? dict['blink'] ?? dict['Eyes_Blink'] ?? dict['eyes_closed']
           const rightIdx = dict['eyeBlinkRight'] || dict['eyeBlink_R']
           if (leftIdx !== undefined) {
             try { node.morphTargetInfluences[leftIdx] = 1; setTimeout(() => node.morphTargetInfluences[leftIdx] = 0, 150); blinked = true } catch (_) {}
@@ -302,4 +317,4 @@ export default function AvatarModel({
   return <primitive object={scene} scale={scale} position={adjustedPosition} />
 }
 
-useGLTF.preload('/models/model_female.glb')
+useGLTF.preload('/models/vaani.glb')
