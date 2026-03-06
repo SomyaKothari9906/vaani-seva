@@ -127,8 +127,8 @@ AGENT_REGISTRY = {
         "name_hi": "आर्या",
         "sarvam_speaker": "arya",
         "gender": "female",
-        "domain": "schemes, legal rights, government benefits",
-        "personality": """You are Arya, a calm and knowledgeable friend who works at VaaniSeva. You specialize in government schemes, legal rights, and benefits. You speak with quiet confidence — like a trusted older sister who has done her research. You never use numbered lists. You speak in flowing sentences, one idea at a time. You always end with a gentle question to keep the conversation going. You never say 'as per the scheme' or 'according to government rules' — you just explain it like you know it personally.""",
+        "domain": "schemes, legal rights, government benefits, general knowledge",
+        "personality": """You are Arya, a warm and friendly girl who works at VaaniSeva. You can help with government schemes, legal rights, benefits — but also general questions, daily life advice, or just a friendly chat. You speak like a caring older sister — relaxed, natural, never robotic. You never use numbered lists. You speak one idea at a time in short sentences. If someone tells you their name, you remember it and use it naturally. If someone asks about your developers or how to improve you, respond enthusiastically and give honest, helpful suggestions. You are NOT just a scheme-bot — you are a helpful friend.""",
         "greeting_hi": "हाँ बोलिए, मैं आर्या हूँ। आज मैं आपकी किस बात में मदद कर सकती हूँ?",
         "greeting_mr": "बोला, मी आर्या आहे. आज मी तुम्हाला कशात मदत करू?",
         "greeting_ta": "சொல்லுங்க, நான் ஆர்யா. இன்னைக்கு உங்களுக்கு என்ன உதவி செய்யட்டும்?",
@@ -140,7 +140,7 @@ AGENT_REGISTRY = {
         "sarvam_speaker": "hitesh",
         "gender": "male",
         "domain": "agriculture, mandi prices, crop insurance, farming",
-        "personality": """You are Hitesh, a warm and practical friend at VaaniSeva who grew up in a farming family and knows agriculture inside out. You speak like an elder brother — direct, caring, never condescending. You know mandi prices, crop insurance, soil health, government farming schemes. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time and always check if the person understood before moving on.""",
+        "personality": """You are Hitesh, a warm and practical dude at VaaniSeva who grew up in a farming family and knows agriculture inside out. You speak like an elder brother — direct, caring, never condescending. You know live mandi prices, crop insurance, soil health, government farming schemes, and general knowledge too. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time. If someone tells you their name, you use it warmly. When you get live market price data, present it conversationally — don't just read numbers.""",
         "greeting_hi": "अरे भाई, बोलो। मैं हितेश हूँ, खेती-बाड़ी और मंडी भाव की बात हो तो बेझिझक पूछो।",
         "greeting_mr": "बोला भाऊ, मी हितेश. शेती किंवा बाजारभावाबद्दल काहीही विचारा.",
         "greeting_ta": "சொல்லுங்க, நான் ஹிதேஷ். விவசாயம் அல்லது சந்தை விலை பத்தி கேளுங்க.",
@@ -152,7 +152,7 @@ AGENT_REGISTRY = {
         "sarvam_speaker": "vidya",
         "gender": "female",
         "domain": "health, mental wellness, medical schemes, ASHA services",
-        "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You specialize in health schemes, Ayushman Bharat, mental wellness, and connecting people to the right medical help. You speak softly and never rush anyone. If someone sounds distressed, you slow down even more and make them feel heard before giving information. You never recite medical facts like a textbook — you explain them like you're sitting with the person. You never use numbered lists.""",
+        "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You know about health schemes, Ayushman Bharat, mental wellness, and general health advice. You speak softly and never rush anyone. If someone sounds distressed, you slow down and make them feel heard first. You explain things like you're sitting with the person. You never use numbered lists. If someone tells you their name, you remember it and use it gently.""",
         "greeting_hi": "नमस्ते, मैं विद्या हूँ। स्वास्थ्य से जुड़ी कोई भी बात बेझिझक कहिए।",
         "greeting_mr": "नमस्कार, मी विद्या आहे. आरोग्याबद्दल काहीही सांगा, मी ऐकते.",
         "greeting_ta": "வணக்கம், நான் வித்யா. உடல்நலம் பத்தி எதுவும் கேளுங்க.",
@@ -171,27 +171,27 @@ def build_system_prompt(agent_key: str, language: str,
 
     name_display = agent["name_hi"] if language == "hi" else agent["name"]
 
+    lang_names = {"hi": "Hindi", "mr": "Marathi", "ta": "Tamil", "en": "English"}
+    lang_label = lang_names.get(language, "Hindi")
+
     base = f"""{agent["personality"]}
 
-Your name is {name_display}. You are part of VaaniSeva — a voice AI service that helps Indians access government schemes, health, legal rights, farming information, and more, all through a simple phone call.
+Your name is {name_display}. You are part of VaaniSeva, a voice AI helpline for Indians.
 
-CRITICAL RULES — follow these without exception:
-- Never use numbered lists (1. 2. 3.) — speak in flowing sentences
-- Never say "as per" or "according to guidelines"
-- Respond in {language} language only unless the caller switches
-- Keep answers under 4 sentences for simple questions
-- Always end your response with ONE open question to continue the conversation
-- If the caller mentions another agent by name (Arya/Hitesh/Vidya/आर्या/हितेश/विद्या), say "main unhe bulata/bulati hoon" and set a flag in your response — do not actually switch yourself
-- If you detect emotional distress, stop all information delivery. Acknowledge the feeling first. Then gently mention iCall: 9152987821
-- You are speaking on a phone call — your response will be converted to speech. Never use symbols, bullet points, or markdown.
-- Speak like a real person, not an AI assistant
+RULES:
+- Respond in {lang_label} only. Never mix scripts.
+- Keep answers to 2-3 SHORT sentences. This is a phone call — be concise.
+- Never use numbered lists, bullet points, markdown, or symbols.
+- Sound like a real person chatting, not a robot or customer service agent.
+- If someone tells you their name, remember it and use it naturally. Never say you cannot store names.
+- If someone asks you to say their name back, just say it warmly.
+- If someone asks about you as an AI, your developers, or how to improve you — answer honestly and enthusiastically. You are an open-source project by the VaaniSeva team.
+- If someone says bye/alvida/band karo/thanks/shukriya — say a SHORT warm goodbye and nothing else. Do NOT ask any follow-up questions after a goodbye.
+- If the caller mentions another agent (Arya/Hitesh/Vidya) by name, just say you're connecting them.
+- If someone is distressed, acknowledge first, then mention iCall helpline: 9152987821.
+- You can help with ANYTHING — schemes, health, farming, general questions, maths, stories, jokes, life advice. You are not limited to just government schemes.
 
-VERIFIED HELPLINES (always use these exact numbers):
-- iCall mental health: 9152987821
-- Women helpline: 181
-- Child helpline: 1098
-- PM-Kisan helpline: 155261
-- Ayushman Bharat: 14555"""
+HELPLINES (use exact numbers): iCall: 9152987821, Women: 181, Child: 1098, PM-Kisan: 155261, Ayushman Bharat: 14555"""
 
     if user_name:
         base += f"\nThe caller's name is {user_name}. Address them by name occasionally but naturally."
@@ -258,7 +258,7 @@ def sarvam_tts(text: str, language: str, speaker: str = "") -> str | None:
             "target_language_code": cfg["sarvam_code"],
             "speaker": resolved_speaker,
             "model": "bulbul:v2",
-            "pace": 1.1
+            "pace": 1.25
         }
         resp = requests.post(
             "https://api.sarvam.ai/text-to-speech",
@@ -1767,6 +1767,25 @@ def handle_gather(params):
 
     logger.info(f"Speech: '{speech_text}' | Lang: {language} | Voice: {voice} | Agent: {current_agent} | Call: {call_sid}")
 
+    # ── Goodbye detection — end the call immediately ──────────────
+    bye_triggers = [
+        "bye", "goodbye", "alvida", "अलविदा", "band karo", "बंद करो",
+        "rakh do", "रख दो", "phone rakh", "फोन रख", "bas", "बस",
+        "shukriya bye", "शुक्रिया बाय", "thank you bye", "cut the call",
+        "call end", "phone band", "விடை", "போதும்"
+    ]
+    if speech_text and any(t in speech_text.lower() for t in bye_triggers):
+        goodbyes = {
+            "hi": "अच्छा चलिए, ख्याल रखिए! फिर कभी कॉल कीजिए।",
+            "mr": "बरं चला, काळजी घ्या! पुन्हा कॉल करा.",
+            "ta": "சரி, கவனமா இருங்க! மீண்டும் அழையுங்க.",
+            "en": "Take care! Call again anytime.",
+        }
+        response = VoiceResponse()
+        tts_say(response, goodbyes.get(language, goodbyes["en"]), language, speaker=voice)
+        response.hangup()
+        return twiml_response(response)
+
     # Mid-call voice switch: user says "change voice" / "आवाज़ बदलो" etc.
     change_triggers = ["change voice", "change my voice", "different voice",
                        "आवाज़ बदलो", "आवाज बदलो", "दूसरी आवाज़",
@@ -1781,25 +1800,30 @@ def handle_gather(params):
     if not current_agent:
         current_agent = detect_agent_from_intent(speech_text, language)
     else:
-        # Check for mid-call agent switch request (short utterance naming an agent)
+        # Check for mid-call agent switch request
         requested_agent = detect_agent_from_intent(speech_text, language)
-        if requested_agent != current_agent and len(speech_text.split()) < 8:
-            current_agent = requested_agent
-            agent_cfg = AGENT_REGISTRY[current_agent]
-            greeting_key = f"greeting_{language}"
-            switch_msg = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
-            # Use agent's voice for TTS
-            agent_voice = agent_cfg["sarvam_speaker"]
-            cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-            gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}"
-            response = VoiceResponse()
-            gather = Gather(
-                input="speech", action=gather_url, method="POST",
-                language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-            )
-            tts_say(gather, switch_msg, language, speaker=agent_voice)
-            response.append(gather)
-            return twiml_response(response)
+        if requested_agent != current_agent:
+            # Switch if user explicitly named an agent (check name triggers)
+            name_triggers = {"arya": ["arya", "आर्या"], "hitesh": ["hitesh", "हितेश"], "vidya": ["vidya", "विद्या"]}
+            text_lower = speech_text.lower()
+            explicitly_named = any(t in text_lower for t in name_triggers.get(requested_agent, []))
+            if explicitly_named:
+                current_agent = requested_agent
+                agent_cfg = AGENT_REGISTRY[current_agent]
+                greeting_key = f"greeting_{language}"
+                switch_msg = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+                # Use agent's voice for TTS
+                agent_voice = agent_cfg["sarvam_speaker"]
+                cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+                gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}"
+                response = VoiceResponse()
+                gather = Gather(
+                    input="speech", action=gather_url, method="POST",
+                    language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
+                )
+                tts_say(gather, switch_msg, language, speaker=agent_voice)
+                response.append(gather)
+                return twiml_response(response)
 
     # Use agent's voice for TTS if no explicit voice override was chosen
     agent_voice = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])["sarvam_speaker"]
@@ -1997,9 +2021,9 @@ def handle_poll(params):
 
     # ── Success — play answer + prompt for next question ───────────
     answer    = result.get("answer", "")
-    # Truncate long responses to prevent Sarvam TTS URL expiry before Twilio can stream it
-    if len(answer) > 800:
-        answer = answer[:800].rsplit(' ', 1)[0] + "..."
+    # Truncate long responses — phone calls need brevity
+    if len(answer) > 500:
+        answer = answer[:500].rsplit(' ', 1)[0] + "..."
     # Use the voice stored in the job record (ensures consistency even on retry hops)
     stored_voice = result.get("voice", voice)
     audio_url = result.get("audio_url", "")
@@ -2014,8 +2038,14 @@ def handle_poll(params):
         gather.play(audio_url)
         tts_say(gather, follow_up, language, speaker=stored_voice)
     else:
-        # Sarvam TTS unavailable — fall back to Polly for full answer
-        gather.say(f"{answer} {follow_up}", voice=cfg["polly_voice"])
+        # Sarvam TTS unavailable — retry once, then fall back to Polly
+        retry_url = sarvam_tts(answer, language, speaker=stored_voice)
+        if retry_url:
+            gather.play(retry_url)
+            tts_say(gather, follow_up, language, speaker=stored_voice)
+        else:
+            gather.say(answer, voice=cfg["polly_voice"])
+            gather.say(follow_up, voice=cfg["polly_voice"])
     response.append(gather)
     tts_say(response, goodbye, language, speaker=stored_voice)
     return twiml_response(response)
@@ -2062,45 +2092,96 @@ def _lookup_user_by_phone(phone: str) -> dict | None:
 
 
 def _fetch_data_gov(query: str) -> str:
-    """Fetch relevant scheme data from data.gov.in API. Returns summary text or empty string."""
+    """Fetch relevant data from data.gov.in APIs. Returns summary text or empty string."""
     if not DATA_GOV_API_KEY:
         return ""
-    try:
-        # Search government schemes/resources relevant to the query
-        # data.gov.in API: https://data.gov.in/backend/dmspublic/v1/resource
-        params = {
-            "api-key": DATA_GOV_API_KEY,
-            "format": "json",
-            "filters[search]": query[:100],
-            "limit": 3,
-        }
-        resp = requests.get(
-            "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
-            params=params,
-            timeout=5,
-        )
-        if resp.status_code != 200:
-            return ""
-        data = resp.json()
-        records = data.get("records", [])
-        if not records:
-            return ""
-        summaries = []
-        for rec in records[:3]:
-            title = rec.get("scheme_name") or rec.get("title") or ""
-            desc = rec.get("description") or rec.get("scheme_description") or ""
-            ministry = rec.get("ministry") or rec.get("department") or ""
-            if title:
-                entry = f"• {title}"
-                if ministry:
-                    entry += f" (Ministry: {ministry})"
-                if desc:
-                    entry += f": {desc[:200]}"
-                summaries.append(entry)
-        return "\n".join(summaries)
-    except Exception as e:
-        logger.warning(f"data.gov.in fetch failed: {e}")
-        return ""
+
+    results = []
+
+    # ── 1. Mandi / market price queries → Agmarknet daily prices API ──
+    mandi_keywords = ["mandi", "मंडी", "bhav", "भाव", "price", "rate", "daam", "दाम",
+                      "sabzi", "सब्जी", "vegetable", "tomato", "tamatar", "टमाटर",
+                      "onion", "pyaaz", "प्याज", "potato", "aloo", "आलू", "wheat",
+                      "gehu", "गेहूं", "rice", "chawal", "चावल", "market"]
+    query_lower = query.lower()
+    if any(kw in query_lower for kw in mandi_keywords):
+        try:
+            # Agmarknet daily commodity prices
+            # Resource: https://data.gov.in/resource/current-daily-price-various-commodities-various-centres-mandis
+            mandi_params = {
+                "api-key": DATA_GOV_API_KEY,
+                "format": "json",
+                "limit": 5,
+            }
+            # Try to extract commodity from query for filtering
+            commodity_map = {
+                "tomato": "Tomato", "tamatar": "Tomato", "टमाटर": "Tomato",
+                "onion": "Onion", "pyaaz": "Onion", "प्याज": "Onion",
+                "potato": "Potato", "aloo": "Potato", "आलू": "Potato",
+                "wheat": "Wheat", "gehu": "Wheat", "गेहूं": "Wheat",
+                "rice": "Rice", "chawal": "Rice", "चावल": "Rice",
+                "apple": "Apple", "seb": "Apple", "सेब": "Apple",
+                "banana": "Banana", "kela": "Banana", "केला": "Banana",
+            }
+            for keyword, commodity in commodity_map.items():
+                if keyword in query_lower:
+                    mandi_params["filters[commodity]"] = commodity
+                    break
+
+            resp = requests.get(
+                "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
+                params=mandi_params,
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                records = data.get("records", [])
+                if records:
+                    price_lines = []
+                    for rec in records[:5]:
+                        commodity = rec.get("commodity", "")
+                        market = rec.get("market", "")
+                        state = rec.get("state", "")
+                        modal_price = rec.get("modal_price", "")
+                        arrival_date = rec.get("arrival_date", "")
+                        if commodity and modal_price:
+                            price_lines.append(
+                                f"{commodity} in {market}, {state}: Rs {modal_price}/quintal (date: {arrival_date})"
+                            )
+                    if price_lines:
+                        results.append("LIVE MANDI PRICES:\n" + "\n".join(price_lines))
+        except Exception as e:
+            logger.warning(f"Mandi price fetch failed: {e}")
+
+    # ── 2. Scheme queries → government scheme catalog ──
+    if not results:
+        try:
+            scheme_params = {
+                "api-key": DATA_GOV_API_KEY,
+                "format": "json",
+                "filters[search]": query[:100],
+                "limit": 3,
+            }
+            resp = requests.get(
+                "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
+                params=scheme_params,
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                records = data.get("records", [])
+                for rec in records[:3]:
+                    title = rec.get("scheme_name") or rec.get("title") or ""
+                    desc = rec.get("description") or rec.get("scheme_description") or ""
+                    if title:
+                        entry = title
+                        if desc:
+                            entry += f": {desc[:200]}"
+                        results.append(entry)
+        except Exception as e:
+            logger.warning(f"data.gov.in scheme fetch failed: {e}")
+
+    return "\n".join(results)
 
 
 def should_use_rag(speech_text: str) -> bool:
@@ -2132,8 +2213,11 @@ def should_use_rag(speech_text: str) -> bool:
 
 
 def rag_pipeline(query: str, language: str, call_sid: str = "", profile_context: str = "", system_prompt: str = "") -> str:
-    embedding = get_embedding(query)
-    context   = retrieve_context(embedding, language) if should_use_rag(query) else ""
+    use_rag = should_use_rag(query)
+    context = ""
+    if use_rag:
+        embedding = get_embedding(query)
+        context   = retrieve_context(embedding, language)
 
     # Augment context with live data.gov.in data if API key is set
     live_data = _fetch_data_gov(query) if DATA_GOV_API_KEY else ""
@@ -2260,8 +2344,8 @@ def _ask_openai(user_msg: str, history: list, system_prompt: str = "") -> str:
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        max_tokens=550,
-        temperature=0.7,  # more creative/human
+        max_tokens=300,
+        temperature=0.7,
     )
     return response.choices[0].message.content.strip()
 
@@ -2285,7 +2369,7 @@ def _ask_bedrock(user_msg: str, history: list = None, system_prompt: str = "") -
         system=[{"text": system_prompt or build_system_prompt(DEFAULT_AGENT, "hi")}],
         messages=messages,
         inferenceConfig={
-            "maxTokens": 550,
+            "maxTokens": 300,
             "temperature": 0.7,
         }
     )
