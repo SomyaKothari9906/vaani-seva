@@ -1583,13 +1583,18 @@ def handle_incoming(params):
         hints="hindi, marathi, tamil, english, हाँ, हिंदी, मराठी",
     )
 
-    # Welcome in Hindi then English so caller knows what to press
+    # Welcome in each language so every caller hears their own language
     tts_say(gather,
-            "नमस्ते! वाणीसेवा में आपका स्वागत है। "
-            "हिंदी के लिए 1 दबाएं। मराठी के लिए 2। तमिल के लिए 3। अंग्रेजी के लिए 4।",
+            "नमस्ते! वाणीसेवा में आपका स्वागत है। हिंदी के लिए 1 दबाएं।",
             "hi", speaker="arya")
     tts_say(gather,
-            "Welcome to VaaniSeva. Press 1 for Hindi, 2 for Marathi, 3 for Tamil, or 4 for English.",
+            "नमस्कार! मराठीसाठी 2 दाबा।",
+            "mr", speaker="arya")
+    tts_say(gather,
+            "வணக்கம்! தமிழுக்கு 3 அழுத்தவும்।",
+            "ta", speaker="arya")
+    tts_say(gather,
+            "Welcome! Press 4 for English.",
             "en", speaker="vidya")
     response.append(gather)
 

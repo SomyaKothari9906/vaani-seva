@@ -256,16 +256,18 @@ def create_api_gateway(lambda_arn):
         )
         print(f"    ✓ ANY {path}")
 
-    # Create /voice → /voice/incoming, /voice/language, /voice/gather, /voice/token
-    voice_id    = get_or_create_resource(root_id, "voice")
-    incoming_id = get_or_create_resource(voice_id, "incoming")
-    language_id = get_or_create_resource(voice_id, "language")
-    gather_id   = get_or_create_resource(voice_id, "gather")
-    token_id    = get_or_create_resource(voice_id, "token")
-    poll_id     = get_or_create_resource(voice_id, "poll")
+    # Create /voice → /voice/incoming, /voice/language, /voice/language-detect, /voice/gather, /voice/token
+    voice_id         = get_or_create_resource(root_id, "voice")
+    incoming_id      = get_or_create_resource(voice_id, "incoming")
+    language_id      = get_or_create_resource(voice_id, "language")
+    lang_detect_id   = get_or_create_resource(voice_id, "language-detect")
+    gather_id        = get_or_create_resource(voice_id, "gather")
+    token_id         = get_or_create_resource(voice_id, "token")
+    poll_id          = get_or_create_resource(voice_id, "poll")
 
-    add_post_method(incoming_id, "/voice/incoming")
-    add_post_method(language_id, "/voice/language")
+    add_post_method(incoming_id,    "/voice/incoming")
+    add_post_method(language_id,    "/voice/language")
+    add_post_method(lang_detect_id, "/voice/language-detect")
     add_post_method(gather_id,   "/voice/gather")
     add_get_method(token_id,     "/voice/token")
     add_options_method(token_id, "/voice/token")
