@@ -55,12 +55,15 @@ def package_lambda():
     """Zip Lambda code + dependencies."""
     print("Packaging Lambda...")
     pkg_dir = "build/lambda_package"
-    shutil.rmtree("build", ignore_errors=True)
+    # Remove only lambda_package to avoid OneDrive locking the zip/build root
+    shutil.rmtree(pkg_dir, ignore_errors=True)
     os.makedirs(pkg_dir, exist_ok=True)
 
-    # Install deps into package directory with Linux-compatible wheels (Lambda runs on Amazon Linux)
-    # --platform manylinux2014_x86_64 ensures compiled C extensions match Lambda's Linux runtime
-    run(f"pip install twilio requests pyjwt --platform manylinux2014_x86_64 --only-binary=:all: --python-version 311 -t {pkg_dir} -q")
+    # Install binary deps with Linux-compatible wheels (Lambda runs on Amazon Linux)
+    # twilio has compiled C extensions so needs --platform + --only-binary
+    run(f"pip install twilio --platform manylinux2014_x86_64 --only-binary=:all: --python-version 311 -t {pkg_dir} -q")
+    # Pure-Python packages don't have manylinux wheels — install normally
+    run(f"pip install requests pyjwt aiohttp aiohttp-retry -t {pkg_dir} -q")
 
     # Copy handler + connect_handler
     shutil.copy("lambdas/call_handler/handler.py", f"{pkg_dir}/handler.py")
