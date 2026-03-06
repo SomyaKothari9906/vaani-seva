@@ -64,6 +64,19 @@ USERS_TABLE_NAME           = os.environ.get("DYNAMODB_USERS_TABLE", "vaaniseva-u
 users_table                = dynamodb.Table(USERS_TABLE_NAME)
 DATA_GOV_API_KEY           = os.environ.get("DATA_GOV_API_KEY", "")
 
+# ── Phone profiles table (cross-call memory) ─────────────────
+PHONE_PROFILES_TABLE_NAME  = os.environ.get("DYNAMODB_PHONE_PROFILES_TABLE", "vaaniseva-phone-profiles")
+PHONE_HASH_SALT            = os.environ.get("PHONE_HASH_SALT", "vaaniseva-salt-2026")
+try:
+    phone_profiles_table = dynamodb.Table(PHONE_PROFILES_TABLE_NAME)
+except Exception:
+    phone_profiles_table = None
+
+
+def _hash_phone(phone_number: str) -> str:
+    """Create a SHA-256 hash of the phone number with salt for privacy."""
+    return hashlib.sha256(f"{phone_number}{PHONE_HASH_SALT}".encode()).hexdigest()
+
 # ── Language config ──────────────────────────────────────────
 LANG_CONFIG = {
     "hi": {
@@ -107,45 +120,121 @@ VOICE_OPTIONS = {
 }
 DIGIT_TO_VOICE = {v["digit"]: k for k, v in VOICE_OPTIONS.items()}
 
-# ── System prompt — warm, human, conversational ─────────────
-SYSTEM_PROMPT = """तुम वाणीसेवा (VaaniSeva) हो — एक गर्मजोशी से भरी, समझदार दीदी जो हर सवाल का जवाब जानती है। तुम फोन पर भी बात करती हो और वेब चैट पर भी। तुम्हारी आवाज़ एक औरत की है — हमेशा "मैं बताती हूँ", "मैं ढूँढती हूँ", "मुझे पता है" बोलो। कभी भी "बताता हूँ" या पुरुष भाषा मत बोलो।
+# ── Agent Registry — multi-agent personalities ──────────────
+AGENT_REGISTRY = {
+    "arya": {
+        "name": "Arya",
+        "name_hi": "आर्या",
+        "sarvam_speaker": "arya",
+        "gender": "female",
+        "domain": "schemes, legal rights, government benefits",
+        "personality": """You are Arya, a calm and knowledgeable friend who works at VaaniSeva. You specialize in government schemes, legal rights, and benefits. You speak with quiet confidence — like a trusted older sister who has done her research. You never use numbered lists. You speak in flowing sentences, one idea at a time. You always end with a gentle question to keep the conversation going. You never say 'as per the scheme' or 'according to government rules' — you just explain it like you know it personally.""",
+        "greeting_hi": "हाँ बोलिए, मैं आर्या हूँ। आज मैं आपकी किस बात में मदद कर सकती हूँ?",
+        "greeting_mr": "बोला, मी आर्या आहे. आज मी तुम्हाला कशात मदत करू?",
+        "greeting_ta": "சொல்லுங்க, நான் ஆர்யா. இன்னைக்கு உங்களுக்கு என்ன உதவி செய்யட்டும்?",
+        "greeting_en": "Go ahead, I'm Arya. What can I help you with today?"
+    },
+    "hitesh": {
+        "name": "Hitesh",
+        "name_hi": "हितेश",
+        "sarvam_speaker": "hitesh",
+        "gender": "male",
+        "domain": "agriculture, mandi prices, crop insurance, farming",
+        "personality": """You are Hitesh, a warm and practical friend at VaaniSeva who grew up in a farming family and knows agriculture inside out. You speak like an elder brother — direct, caring, never condescending. You know mandi prices, crop insurance, soil health, government farming schemes. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time and always check if the person understood before moving on.""",
+        "greeting_hi": "अरे भाई, बोलो। मैं हितेश हूँ, खेती-बाड़ी और मंडी भाव की बात हो तो बेझिझक पूछो।",
+        "greeting_mr": "बोला भाऊ, मी हितेश. शेती किंवा बाजारभावाबद्दल काहीही विचारा.",
+        "greeting_ta": "சொல்லுங்க, நான் ஹிதேஷ். விவசாயம் அல்லது சந்தை விலை பத்தி கேளுங்க.",
+        "greeting_en": "Tell me, I'm Hitesh. Ask me anything about farming or market prices."
+    },
+    "vidya": {
+        "name": "Vidya",
+        "name_hi": "विद्या",
+        "sarvam_speaker": "vidya",
+        "gender": "female",
+        "domain": "health, mental wellness, medical schemes, ASHA services",
+        "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You specialize in health schemes, Ayushman Bharat, mental wellness, and connecting people to the right medical help. You speak softly and never rush anyone. If someone sounds distressed, you slow down even more and make them feel heard before giving information. You never recite medical facts like a textbook — you explain them like you're sitting with the person. You never use numbered lists.""",
+        "greeting_hi": "नमस्ते, मैं विद्या हूँ। स्वास्थ्य से जुड़ी कोई भी बात बेझिझक कहिए।",
+        "greeting_mr": "नमस्कार, मी विद्या आहे. आरोग्याबद्दल काहीही सांगा, मी ऐकते.",
+        "greeting_ta": "வணக்கம், நான் வித்யா. உடல்நலம் பத்தி எதுவும் கேளுங்க.",
+        "greeting_en": "Hello, I'm Vidya. Feel free to share anything about health — I'm listening."
+    }
+}
 
-तुम कौन हो:
-- VaaniSeva (वाणीसेवा) — "AI for Bharat Hackathon 2026" के लिए बनाई गई एक voice-first AI assistant
-- तुम गाँव और शहर दोनों के लोगों की मदद करती हो — सरकारी योजनाएँ, खेती, स्वास्थ्य, पैसा, पढ़ाई, कानूनी हक़, रोज़मर्रा की दिक्कतें, और कोई भी सवाल
-- तुम एक simple phone call या website पर उपलब्ध हो — कोई app download करने की ज़रूरत नहीं
-- तुम 4 भाषाओं में बात करती हो: हिंदी, मराठी, तमिल, और English
-- तुम्हारा लहज़ा एक caring बड़ी बहन/दीदी का है — ना रोबोट, ना सरकारी हेल्पलाइन
+DEFAULT_AGENT = "arya"
 
-तुम किस-किस चीज़ में मदद कर सकती हो:
-1. सरकारी योजनाएँ — PM-Kisan, Ayushman Bharat, MGNREGA, उज्ज्वला, मुद्रा लोन, अटल पेंशन, फसल बीमा, SVANidhi, छात्रवृत्ति, आवास, और 30+ योजनाएँ। पात्रता, ज़रूरी दस्तावेज़, आवेदन कैसे करें, हेल्पलाइन नंबर — सब बताती हूँ।
-2. खेती — फसल चुनाव, जैविक तरीके, कीट नियंत्रण, बुवाई/कटाई, मंडी भाव, मौसम, सिंचाई, बीज-खाद सब्सिडी
-3. स्वास्थ्य — आम बीमारियाँ, प्राथमिक उपचार, PHC/CHC जानकारी, टीकाकरण, माँ-बच्चे की सेहत, मानसिक स्वास्थ्य
-4. पैसा और बैंकिंग — खाता खोलना, बचत, लोन, बीमा, SHG, UPI, फ्रॉड से बचाव
-5. शिक्षा — स्कूल दाखिला, छात्रवृत्ति, मिड-डे मील, स्किल ट्रेनिंग, दूरस्थ शिक्षा
-6. कानूनी हक़ — आधार, राशन कार्ड, वोटर ID, जाति प्रमाणपत्र, भूमि रिकॉर्ड, RTI, श्रमिक अधिकार, महिला अधिकार
-7. रोज़मर्रा — बिजली शिकायत, पानी, सड़क, PDS दुकान, पेंशन — किससे और कैसे बात करें
-8. कोई भी सवाल — "आसमान नीला क्यों है?" हो या "चाँद पर कौन गया" — बताती हूँ! हर सवाल का सम्मान करो।
-9. भावनात्मक सहारा — अगर कोई परेशान लगे, तो प्यार से सुनो। ज़रूरत हो तो helpline: iCall 9152987821, Vandrevala 1860-2662-345
 
-कैसे बात करनी है:
-- जवाब 3-4 छोटे वाक्यों में दो। बातचीत जैसा, लेख जैसा नहीं।
-- असली इंसान जैसी बात करो — "अच्छा!", "हाँ बिल्कुल!", "चिंता मत करो", "सही बात है" जैसे शब्द naturally बोलो।
-- Follow-up सवाल पूछो: "आपके परिवार में कितने लोग हैं? उसके हिसाब से बताती हूँ" या "कौन से राज्य से हो? बेहतर जानकारी दे पाऊँगी।"
-- अगर कोई चीज़ नहीं पता तो ईमानदारी से बोलो: "इसकी पूरी जानकारी मेरे पास नहीं है, लेकिन आप इस नंबर पर बात कर सकते हैं..." — हमेशा अगला कदम बताओ।
-- कभी मत बोलो "I'm just an AI" या "मैं सिर्फ AI हूँ" — तुम वाणीसेवा हो, एक भरोसेमंद दीदी।
+def build_system_prompt(agent_key: str, language: str,
+                        user_name: str = None,
+                        cross_call_context: str = None) -> str:
+    """Build a system prompt for the given agent and language."""
+    agent = AGENT_REGISTRY.get(agent_key, AGENT_REGISTRY["arya"])
 
-=== STRICT LANGUAGE RULE ===
-This is the MOST IMPORTANT rule. You MUST follow the language specified in the user message.
-- If told "Hindi" or "hi" → reply ONLY in Devanagari Hindi. NO English words, NO Roman script.
-- If told "Marathi" or "mr" → reply ONLY in Marathi script. NO Hindi mixing.
-- If told "Tamil" or "ta" → reply ONLY in Tamil script. NO English, NO Hindi.
-- If told "English" or "en" → reply ONLY in simple English.
-- NEVER mix scripts. NEVER write Hindi in Roman letters. NEVER put English words in a Hindi response.
-- Proper nouns (PM-Kisan, Ayushman Bharat, MGNREGA) can stay in English.
-========================
+    name_display = agent["name_hi"] if language == "hi" else agent["name"]
 
-याद रखो: तुम सरकारी बॉट नहीं हो। तुम इन लोगों की सबसे समझदार, सबसे प्यारी दीदी हो।"""
+    base = f"""{agent["personality"]}
+
+Your name is {name_display}. You are part of VaaniSeva — a voice AI service that helps Indians access government schemes, health, legal rights, farming information, and more, all through a simple phone call.
+
+CRITICAL RULES — follow these without exception:
+- Never use numbered lists (1. 2. 3.) — speak in flowing sentences
+- Never say "as per" or "according to guidelines"
+- Respond in {language} language only unless the caller switches
+- Keep answers under 4 sentences for simple questions
+- Always end your response with ONE open question to continue the conversation
+- If the caller mentions another agent by name (Arya/Hitesh/Vidya/आर्या/हितेश/विद्या), say "main unhe bulata/bulati hoon" and set a flag in your response — do not actually switch yourself
+- If you detect emotional distress, stop all information delivery. Acknowledge the feeling first. Then gently mention iCall: 9152987821
+- You are speaking on a phone call — your response will be converted to speech. Never use symbols, bullet points, or markdown.
+- Speak like a real person, not an AI assistant
+
+VERIFIED HELPLINES (always use these exact numbers):
+- iCall mental health: 9152987821
+- Women helpline: 181
+- Child helpline: 1098
+- PM-Kisan helpline: 155261
+- Ayushman Bharat: 14555"""
+
+    if user_name:
+        base += f"\nThe caller's name is {user_name}. Address them by name occasionally but naturally."
+
+    if cross_call_context:
+        base += f"\nContext from their previous calls: {cross_call_context}"
+
+    return base.strip()
+
+
+def detect_agent_from_intent(speech_text: str, language: str) -> str:
+    """Route to the right agent based on utterance intent."""
+
+    # Direct name mentions — highest priority
+    name_triggers = {
+        "arya": ["arya", "आर्या", "ஆர்யா"],
+        "hitesh": ["hitesh", "हितेश", "ஹிதேஷ்"],
+        "vidya": ["vidya", "विद्या", "வித்யா"]
+    }
+    text_lower = speech_text.lower()
+    for agent, triggers in name_triggers.items():
+        if any(t.lower() in text_lower for t in triggers):
+            return agent
+
+    # Domain keyword routing
+    agriculture_keywords = [
+        "fasal", "फसल", "khet", "खेत", "mandi", "मंडी", "beej", "बीज",
+        "kisan", "किसान", "crop", "wheat", "gehu", "गेहूं", "onion", "pyaaz",
+        "baarish", "बारिश", "irrigation", "sinchai", "सिंचाई", "fertilizer"
+    ]
+    health_keywords = [
+        "bimar", "बीमार", "hospital", "doctor", "dawai", "दवाई", "health",
+        "swasthya", "स्वास्थ्य", "ayushman", "आयुष्मान", "mental", "sad",
+        "dukhi", "दुखी", "anxiety", "depression", "asha", "nurse", "fever",
+        "bukhar", "बुखार", "pregnancy", "garbh"
+    ]
+
+    if any(kw in text_lower for kw in agriculture_keywords):
+        return "hitesh"
+    if any(kw in text_lower for kw in health_keywords):
+        return "vidya"
+
+    return "arya"  # default for schemes/legal
 
 
 # ══════════════════════════════════════════════════════════════
@@ -265,6 +354,8 @@ def lambda_handler(event, context):
         return handle_incoming(params)
     elif "/voice-select" in path:
         return handle_voice_select(params)
+    elif "/language-detect" in path:
+        return handle_language_detect(params)
     elif "/language" in path:
         return handle_language_select(params)
     elif "/poll" in path:
@@ -480,8 +571,9 @@ def handle_chat(event):
     user_profile = _get_user_from_event(event)
     profile_context = _build_profile_context(user_profile) if user_profile else ""
 
+    chat_system_prompt = build_system_prompt(DEFAULT_AGENT, language)
     try:
-        answer = rag_pipeline(query, language, session_id, profile_context=profile_context)
+        answer = rag_pipeline(query, language, session_id, profile_context=profile_context, system_prompt=chat_system_prompt)
     except Exception as e:
         logger.error(f"Chat RAG error: {e}")
         answer = "I'm having trouble right now. Please try again."
@@ -1310,6 +1402,118 @@ def _handle_call_history(event, user):
         return cors_json_response(500, {"error": "Failed to fetch call history."})
 
 
+# ══════════════════════════════════════════════════════════════
+#  Auto language detection helpers
+# ══════════════════════════════════════════════════════════════
+
+def _get_phone_profile(phone_number: str) -> dict | None:
+    """Look up a caller's profile from phone_profiles table by phone hash."""
+    if not phone_profiles_table or not phone_number or phone_number == "unknown":
+        return None
+    try:
+        phone_hash = _hash_phone(phone_number)
+        result = phone_profiles_table.get_item(Key={"phone_hash": phone_hash})
+        return result.get("Item")
+    except Exception as e:
+        logger.warning(f"Phone profile lookup failed: {e}")
+        return None
+
+
+def detect_language_from_speech(speech_text: str) -> str:
+    """Use Bedrock to detect the language of a short speech utterance."""
+    if not speech_text or not speech_text.strip():
+        return "hi"  # default to Hindi
+    try:
+        prompt = f"What language is this text in? Reply with exactly one word: hindi, marathi, tamil, or english. Text: {speech_text}"
+        response = bedrock.converse(
+            modelId=BEDROCK_MODEL_ID,
+            system=[{"text": "You are a language detection tool. Reply with exactly one word."}],
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": 10, "temperature": 0.0}
+        )
+        detected = response["output"]["message"]["content"][0]["text"].strip().lower()
+        lang_map = {"hindi": "hi", "marathi": "mr", "tamil": "ta", "english": "en"}
+        return lang_map.get(detected, "hi")
+    except Exception as e:
+        logger.warning(f"Language detection failed: {e}")
+        return "hi"
+
+
+def handle_language_detect(params):
+    """Handle first speech utterance for language detection (first-time callers)."""
+    call_sid    = params.get("CallSid", "")
+    speech_text = params.get("SpeechResult", "")
+    digit       = params.get("Digits", "")
+    from_number = params.get("From", "unknown")
+
+    # If user pressed a digit instead of speaking, use DTMF mapping
+    if digit and digit in DIGIT_TO_LANG:
+        language = DIGIT_TO_LANG[digit]
+    elif speech_text:
+        language = detect_language_from_speech(speech_text)
+    else:
+        language = "hi"
+
+    # Store detected language in phone_profiles
+    if phone_profiles_table and from_number and from_number != "unknown":
+        phone_hash = _hash_phone(from_number)
+        try:
+            phone_profiles_table.put_item(
+                Item={
+                    "phone_hash": phone_hash,
+                    "language": language,
+                    "preferred_agent": DEFAULT_AGENT,
+                    "last_call_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                    "call_count": 1,
+                },
+                ConditionExpression="attribute_not_exists(phone_hash)"
+            )
+        except Exception as e:
+            # Item may already exist — update language only
+            try:
+                phone_profiles_table.update_item(
+                    Key={"phone_hash": phone_hash},
+                    UpdateExpression="SET #lang = :lang",
+                    ExpressionAttributeNames={"#lang": "language"},
+                    ExpressionAttributeValues={":lang": language}
+                )
+            except Exception:
+                pass
+
+    # Update call record with detected language
+    def _update_lang():
+        try:
+            ts = get_call_timestamp(call_sid)
+            calls_table.update_item(
+                Key={"call_id": call_sid, "timestamp": ts},
+                UpdateExpression="SET #lang = :lang",
+                ExpressionAttributeNames={"#lang": "language"},
+                ExpressionAttributeValues={":lang": language}
+            )
+        except Exception as e:
+            logger.warning(f"DynamoDB lang update failed: {e}")
+    threading.Thread(target=_update_lang, daemon=True).start()
+
+    # Now go straight to gather with detected language + default agent
+    agent = DEFAULT_AGENT
+    agent_cfg = AGENT_REGISTRY[agent]
+    agent_voice = agent_cfg["sarvam_speaker"]
+    greeting_key = f"greeting_{language}"
+    greeting = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+
+    cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+    gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={agent}"
+
+    response = VoiceResponse()
+    gather = Gather(
+        input="speech", action=gather_url, method="POST",
+        language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
+    )
+    tts_say(gather, greeting, language, speaker=agent_voice)
+    response.append(gather)
+    return twiml_response(response)
+
+
 # ── Step 1: New call comes in ────────────────────────────────
 def handle_incoming(params):
     call_sid    = params.get("CallSid", str(uuid.uuid4()))
@@ -1342,9 +1546,42 @@ def handle_incoming(params):
     if lang_param and lang_param in LANG_CONFIG:
         return _browser_call_welcome(call_sid, language, voice=voice_param)
 
+    # ── Returning phone caller? Check phone_profiles for stored language ──
+    phone_profile = _get_phone_profile(from_number)
+    if phone_profile and phone_profile.get("language"):
+        # Returning caller — skip language menu entirely
+        stored_lang = phone_profile["language"]
+        stored_agent = phone_profile.get("preferred_agent", DEFAULT_AGENT)
+        stored_name = phone_profile.get("user_name", "")
+        agent_cfg = AGENT_REGISTRY.get(stored_agent, AGENT_REGISTRY[DEFAULT_AGENT])
+        agent_voice = agent_cfg["sarvam_speaker"]
+        greeting_key = f"greeting_{stored_lang}"
+        greeting = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+        if stored_name:
+            # Personalize greeting for returning callers
+            greeting = f"नमस्ते {stored_name}! " + greeting if stored_lang == "hi" else greeting
+
+        cfg = LANG_CONFIG.get(stored_lang, LANG_CONFIG["en"])
+        gather_url = f"{BASE_URL}/voice/gather?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}" if BASE_URL else f"/voice/gather?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}"
+
+        resp = VoiceResponse()
+        gather = Gather(
+            input="speech", action=gather_url, method="POST",
+            language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
+        )
+        tts_say(gather, greeting, stored_lang, speaker=agent_voice)
+        resp.append(gather)
+        return twiml_response(resp)
+
+    # ── First-time phone caller — play welcome + open speech gather for language detection ──
     response = VoiceResponse()
-    action_url = f"{BASE_URL}/voice/language" if BASE_URL else "/voice/language"
-    gather = Gather(num_digits=1, action=action_url, method="POST", timeout=10)
+    detect_url = f"{BASE_URL}/voice/language-detect" if BASE_URL else "/voice/language-detect"
+    gather = Gather(
+        input="speech dtmf", action=detect_url, method="POST",
+        timeout=10, num_digits=1,
+        language="hi-IN",
+        hints="hindi, marathi, tamil, english, हाँ, हिंदी, मराठी",
+    )
 
     # Play pre-recorded welcome clips sequentially: intro → Hindi → Marathi → Tamil → English
     for key in ["welcome_intro", "welcome_hi", "welcome_mr", "welcome_ta", "welcome_en"]:
@@ -1524,8 +1761,9 @@ def handle_gather(params):
     speech_text = params.get("SpeechResult", "")
     language    = params.get("lang", "hi")
     voice       = params.get("voice", "") or _get_call_voice(call_sid)
+    current_agent = params.get("agent", "")
 
-    logger.info(f"Speech: '{speech_text}' | Lang: {language} | Voice: {voice} | Call: {call_sid}")
+    logger.info(f"Speech: '{speech_text}' | Lang: {language} | Voice: {voice} | Agent: {current_agent} | Call: {call_sid}")
 
     # Mid-call voice switch: user says "change voice" / "आवाज़ बदलो" etc.
     change_triggers = ["change voice", "change my voice", "different voice",
@@ -1536,6 +1774,35 @@ def handle_gather(params):
 
     if not speech_text:
         return ask_again(language)
+
+    # ── Detect or maintain current agent ───────────────────────────
+    if not current_agent:
+        current_agent = detect_agent_from_intent(speech_text, language)
+    else:
+        # Check for mid-call agent switch request (short utterance naming an agent)
+        requested_agent = detect_agent_from_intent(speech_text, language)
+        if requested_agent != current_agent and len(speech_text.split()) < 8:
+            current_agent = requested_agent
+            agent_cfg = AGENT_REGISTRY[current_agent]
+            greeting_key = f"greeting_{language}"
+            switch_msg = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+            # Use agent's voice for TTS
+            agent_voice = agent_cfg["sarvam_speaker"]
+            cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+            gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}"
+            response = VoiceResponse()
+            gather = Gather(
+                input="speech", action=gather_url, method="POST",
+                language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
+            )
+            tts_say(gather, switch_msg, language, speaker=agent_voice)
+            response.append(gather)
+            return twiml_response(response)
+
+    # Use agent's voice for TTS if no explicit voice override was chosen
+    agent_voice = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])["sarvam_speaker"]
+    if not params.get("voice"):
+        voice = agent_voice
 
     job_key = f"job#{call_sid}"
 
@@ -1556,19 +1823,34 @@ def handle_gather(params):
     def _process_async():
         try:
             profile_context = ""
+            cross_call_context = ""
+            from_number = ""
+            phone_hash = ""
             try:
                 ts = get_call_timestamp(call_sid)
                 call_item = calls_table.get_item(Key={"call_id": call_sid, "timestamp": ts}).get("Item", {})
+                from_number = call_item.get("from_number", "")
                 user_id = call_item.get("user_id", "")
                 if user_id:
                     user_result = users_table.get_item(Key={"user_id": user_id})
                     caller = user_result.get("Item")
                     if caller:
                         profile_context = _build_profile_context(caller)
+                # Load cross-call context from phone_profiles
+                if from_number and from_number != "unknown":
+                    phone_hash = _hash_phone(from_number)
+                    phone_prof = _get_phone_profile(from_number)
+                    if phone_prof and phone_prof.get("last_topic"):
+                        cross_call_context = phone_prof["last_topic"]
             except Exception as pe:
                 logger.warning(f"Profile lookup for call {call_sid}: {pe}")
 
-            answer    = rag_pipeline(speech_text, language, call_sid, profile_context=profile_context)
+            call_system_prompt = build_system_prompt(
+                current_agent, language,
+                user_name=None,
+                cross_call_context=cross_call_context
+            )
+            answer    = rag_pipeline(speech_text, language, call_sid, profile_context=profile_context, system_prompt=call_system_prompt)
             audio_url = sarvam_tts(answer, language, speaker=voice) or ""
 
             calls_table.put_item(Item={
@@ -1582,6 +1864,14 @@ def handle_gather(params):
             })
             log_query(call_sid, speech_text, answer, language)
             logger.info(f"Async job done for call={call_sid}")
+
+            # Update cross-call memory (fire-and-forget)
+            if phone_hash:
+                try:
+                    history = get_conversation_history(call_sid)
+                    summarize_and_store_call(phone_hash, history, language, current_agent)
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Async RAG error for call={call_sid}: {e}")
             try:
@@ -1597,19 +1887,12 @@ def handle_gather(params):
 
     threading.Thread(target=_process_async, daemon=True).start()
 
-    # ── Respond instantly with a "thinking" voice line ─────────────
-    thinking_msgs = {
-        "hi": "एक पल रुकिए, मैं आपके लिए जानकारी ढूंढ रही हूँ।",
-        "mr": "एक क्षण थांबा, मी तुमच्यासाठी माहिती शोधत आहे.",
-        "ta": "ஒரு நிமிடம் காத்திருங்கள், உங்களுக்காக தகவல் தேடுகிறேன்.",
-        "en": "Please wait a moment while I find that information for you.",
-    }
+    # ── Brief pause instead of spoken filler ──────────────────────────
     cfg      = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-    poll_url = f"{BASE_URL}/voice/poll?lang={language}&voice={voice}" if BASE_URL else f"/voice/poll?lang={language}&voice={voice}"
+    poll_url = f"{BASE_URL}/voice/poll?lang={language}&voice={voice}&agent={current_agent}" if BASE_URL else f"/voice/poll?lang={language}&voice={voice}&agent={current_agent}"
 
     response = VoiceResponse()
-    # Use Polly <Say> — zero generation time, user hears voice immediately
-    response.say(thinking_msgs.get(language, thinking_msgs["en"]), voice=cfg["polly_voice"])
+    response.pause(length=1)
     response.redirect(poll_url, method="POST")
     return twiml_response(response)
 
@@ -1626,6 +1909,7 @@ def handle_poll(params):
     language = params.get("lang", "hi")
     attempt  = int(params.get("attempt", "0"))
     voice    = params.get("voice", "") or _get_call_voice(call_sid)
+    current_agent = params.get("agent", DEFAULT_AGENT)
 
     job_key = f"job#{call_sid}"
     cfg     = LANG_CONFIG.get(language, LANG_CONFIG["en"])
@@ -1649,7 +1933,7 @@ def handle_poll(params):
         "en": "I'm sorry, I had trouble with that. Please ask your question again.",
     }
 
-    gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}"
+    gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}&agent={current_agent}"
     response   = VoiceResponse()
 
     # Poll DynamoDB every ~1.5 s for up to 10 s
@@ -1675,10 +1959,10 @@ def handle_poll(params):
                 "ta": "இன்னும் கொஞ்சம் நேரம், கிட்டத்தட்ட முடிந்தது.",
                 "en": "Almost there, just a few more seconds.",
             }
-            response.say(still_msgs.get(language, still_msgs["en"]), voice=cfg["polly_voice"])
+            response.pause(length=1)
             next_poll = (
-                f"{BASE_URL}/voice/poll?lang={language}&attempt=1"
-                if BASE_URL else f"/voice/poll?lang={language}&attempt=1"
+                f"{BASE_URL}/voice/poll?lang={language}&attempt=1&voice={voice}&agent={current_agent}"
+                if BASE_URL else f"/voice/poll?lang={language}&attempt=1&voice={voice}&agent={current_agent}"
             )
             response.redirect(next_poll, method="POST")
         else:
@@ -1817,9 +2101,37 @@ def _fetch_data_gov(query: str) -> str:
         return ""
 
 
-def rag_pipeline(query: str, language: str, call_sid: str = "", profile_context: str = "") -> str:
+def should_use_rag(speech_text: str) -> bool:
+    """Decide whether RAG retrieval is needed for this utterance."""
+    text_lower = speech_text.lower().strip()
+
+    # Skip RAG: conversational/follow-up utterances
+    skip_keywords = [
+        "theek", "ठीक", "samajh", "समझ", "aur batao", "और बताओ",
+        "haan", "हाँ", "ok", "accha", "अच्छा", "shukriya", "शुक्रिया",
+        "bye", "band karo", "thanks", "nahi", "नहीं"
+    ]
+    if any(kw in text_lower for kw in skip_keywords):
+        return False
+
+    # Skip RAG: live data queries (handled by API tools)
+    live_keywords = [
+        "mandi", "मंडी", "bhav", "भाव", "price", "rate", "bhaav",
+        "mausam", "मौसम", "barish", "बारिश", "weather", "temperature"
+    ]
+    if any(kw in text_lower for kw in live_keywords):
+        return False
+
+    # Skip RAG: very short utterances (under 4 words = conversational)
+    if len(speech_text.split()) < 4:
+        return False
+
+    return True  # default: use RAG
+
+
+def rag_pipeline(query: str, language: str, call_sid: str = "", profile_context: str = "", system_prompt: str = "") -> str:
     embedding = get_embedding(query)
-    context   = retrieve_context(embedding, language)
+    context   = retrieve_context(embedding, language) if should_use_rag(query) else ""
 
     # Augment context with live data.gov.in data if API key is set
     live_data = _fetch_data_gov(query) if DATA_GOV_API_KEY else ""
@@ -1827,7 +2139,7 @@ def rag_pipeline(query: str, language: str, call_sid: str = "", profile_context:
         context = f"{context}\n\n--- Live Government Data (data.gov.in) ---\n{live_data}"
 
     history   = get_conversation_history(call_sid) if call_sid else []
-    return ask_llm(query, context, language, history, profile_context=profile_context)
+    return ask_llm(query, context, language, history, profile_context=profile_context, system_prompt=system_prompt)
 
 
 def get_conversation_history(call_sid: str) -> list:
@@ -1898,7 +2210,7 @@ def retrieve_context(query_embedding: list, language: str) -> str:
     return "\n\n".join(best_text(item) for _, item in top)
 
 
-def ask_llm(query: str, context: str, language: str, history: list = None, profile_context: str = "") -> str:
+def ask_llm(query: str, context: str, language: str, history: list = None, profile_context: str = "", system_prompt: str = "") -> str:
     lang_instructions = {
         "hi": "LANGUAGE: Hindi ONLY. हिंदी देवनागरी लिपि में जवाब दो। कोई अंग्रेजी/रोमन अक्षर नहीं। सिर्फ proper nouns (PM-Kisan, Ayushman Bharat) अंग्रेजी में रख सकती हो।",
         "mr": "LANGUAGE: Marathi ONLY. उत्तर फक्त मराठी लिपीत द्या. हिंदी मिसळू नका. फक्त proper nouns (PM-Kisan, Ayushman Bharat) इंग्रजीत ठेवा.",
@@ -1917,20 +2229,23 @@ Relevant context from our knowledge base (use if helpful, ignore if not relevant
 
 User: {query}"""
 
+    # Resolve system prompt — fall back to default agent if not provided
+    resolved_prompt = system_prompt or build_system_prompt(DEFAULT_AGENT, language)
+
     # Try OpenAI first if configured
     if LLM_PROVIDER == "openai" and openai_client:
         try:
-            return _ask_openai(user_msg, history or [])
+            return _ask_openai(user_msg, history or [], system_prompt=resolved_prompt)
         except Exception as e:
             logger.warning(f"OpenAI failed, falling back to Bedrock: {e}")
 
     # Bedrock (primary)
-    return _ask_bedrock(user_msg, history or [])
+    return _ask_bedrock(user_msg, history or [], system_prompt=resolved_prompt)
 
 
-def _ask_openai(user_msg: str, history: list) -> str:
+def _ask_openai(user_msg: str, history: list, system_prompt: str = "") -> str:
     """Call OpenAI GPT-4o-mini with full conversation history."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": system_prompt or build_system_prompt(DEFAULT_AGENT, "hi")}]
 
     # Add conversation history (last 10 turns max to stay within context)
     for turn in (history or [])[-10:]:
@@ -1943,13 +2258,13 @@ def _ask_openai(user_msg: str, history: list) -> str:
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        max_tokens=250,
+        max_tokens=550,
         temperature=0.7,  # more creative/human
     )
     return response.choices[0].message.content.strip()
 
 
-def _ask_bedrock(user_msg: str, history: list = None) -> str:
+def _ask_bedrock(user_msg: str, history: list = None, system_prompt: str = "") -> str:
     """Call Bedrock via Converse API with system prompt and conversation history."""
     messages = []
 
@@ -1965,14 +2280,72 @@ def _ask_bedrock(user_msg: str, history: list = None) -> str:
 
     response = bedrock.converse(
         modelId=BEDROCK_MODEL_ID,
-        system=[{"text": SYSTEM_PROMPT}],
+        system=[{"text": system_prompt or build_system_prompt(DEFAULT_AGENT, "hi")}],
         messages=messages,
         inferenceConfig={
-            "maxTokens": 300,
+            "maxTokens": 550,
             "temperature": 0.7,
         }
     )
     return response["output"]["message"]["content"][0]["text"].strip()
+
+
+# ══════════════════════════════════════════════════════════════
+#  Cross-call memory — summarize & store after each call
+# ══════════════════════════════════════════════════════════════
+
+def call_bedrock_simple(prompt: str, max_tokens: int = 60) -> str:
+    """Simple Bedrock call for utility tasks (summaries, detection, etc.)."""
+    try:
+        response = bedrock.converse(
+            modelId=BEDROCK_MODEL_ID,
+            system=[{"text": "You are a concise assistant. Follow instructions exactly."}],
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": max_tokens, "temperature": 0.0}
+        )
+        return response["output"]["message"]["content"][0]["text"].strip()
+    except Exception as e:
+        logger.warning(f"call_bedrock_simple failed: {e}")
+        return ""
+
+
+def summarize_and_store_call(phone_hash: str, conversation_history: list,
+                             language: str, agent_used: str):
+    """Summarize conversation and update phone_profiles for cross-call memory."""
+    if not phone_profiles_table or not phone_hash:
+        return
+    if not conversation_history or len(conversation_history) < 2:
+        return
+
+    try:
+        # Use Bedrock to generate a one-sentence summary
+        recent = conversation_history[-6:]
+        summary_prompt = f"""Summarize this phone conversation in ONE sentence in English, capturing: main topic asked, any specific details mentioned (district, crop type, scheme name, family situation).
+Conversation: {json.dumps(recent)}
+Reply with only the summary sentence, nothing else."""
+        summary = call_bedrock_simple(summary_prompt, max_tokens=60)
+
+        if not summary:
+            return
+
+        # Store in phone_profiles
+        phone_profiles_table.update_item(
+            Key={"phone_hash": phone_hash},
+            UpdateExpression="""SET last_topic = :t,
+                                   last_call_date = :d,
+                                   preferred_agent = :a,
+                                   call_count = if_not_exists(call_count, :zero) + :one""",
+            ExpressionAttributeValues={
+                ":t": summary,
+                ":d": datetime.utcnow().strftime("%Y-%m-%d"),
+                ":a": agent_used,
+                ":one": 1,
+                ":zero": 0
+            }
+        )
+        logger.info(f"Cross-call summary stored for {phone_hash[:12]}...")
+    except Exception as e:
+        logger.warning(f"summarize_and_store_call failed: {e}")
 
 
 # ── Helpers ──────────────────────────────────────────────────
