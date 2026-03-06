@@ -1984,10 +1984,17 @@ def handle_gather(params):
                 if live_data:
                     context = f"{context}\n\n--- Live Government Data (data.gov.in) ---\n{live_data}"
 
+                # Phase 2 system prompt: remove [FETCH_DATA] logic, tell LLM to answer with the data
+                phase2_prompt = call_system_prompt.split("DATA ACCESS:")[0].strip()
+                if context.strip():
+                    phase2_prompt += "\n\nIMPORTANT: The data below has already been fetched for you. Use it to answer the user's question directly and specifically. Give actual numbers, names, and details from the data. Do NOT say you are checking or looking up anything — you already have the information."
+                else:
+                    phase2_prompt += "\n\nIMPORTANT: We tried to fetch live data but no results were found. Tell the user honestly that current data is not available for their query right now, and offer to help with something else."
+
                 # Phase 2 LLM: now with full context
                 data_answer = ask_llm(speech_text, context, language, history,
                                       profile_context=profile_context,
-                                      system_prompt=call_system_prompt)
+                                      system_prompt=phase2_prompt)
                 # Strip any accidental [FETCH_DATA] from Phase 2
                 data_answer = data_answer.replace("[FETCH_DATA]", "").strip()
 
