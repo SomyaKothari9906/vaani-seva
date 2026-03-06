@@ -1573,7 +1573,7 @@ def handle_incoming(params):
         resp.append(gather)
         return twiml_response(resp)
 
-    # ── First-time phone caller — play welcome + open speech gather for language detection ──
+    # ── First-time phone caller — TTS welcome + digit/speech gather for language detection ──
     response = VoiceResponse()
     detect_url = f"{BASE_URL}/voice/language-detect" if BASE_URL else "/voice/language-detect"
     gather = Gather(
@@ -1583,23 +1583,20 @@ def handle_incoming(params):
         hints="hindi, marathi, tamil, english, हाँ, हिंदी, मराठी",
     )
 
-    # Play pre-recorded welcome clips sequentially: intro → Hindi → Marathi → Tamil → English
-    for key in ["welcome_intro", "welcome_hi", "welcome_mr", "welcome_ta", "welcome_en"]:
-        url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": S3_BUCKET, "Key": f"static-audio/{key}.wav"},
-            ExpiresIn=3600,
-        )
-        gather.play(url)
+    # Welcome in Hindi then English so caller knows what to press
+    tts_say(gather,
+            "नमस्ते! वाणीसेवा में आपका स्वागत है। "
+            "हिंदी के लिए 1 दबाएं। मराठी के लिए 2। तमिल के लिए 3। अंग्रेजी के लिए 4।",
+            "hi", speaker="arya")
+    tts_say(gather,
+            "Welcome to VaaniSeva. Press 1 for Hindi, 2 for Marathi, 3 for Tamil, or 4 for English.",
+            "en", speaker="vidya")
     response.append(gather)
 
-    # Pre-recorded Sarvam TTS no-input fallback from S3
-    no_input_url = s3_client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": S3_BUCKET, "Key": "static-audio/no_input.wav"},
-        ExpiresIn=3600,
-    )
-    response.play(no_input_url)
+    # No-input fallback — prompt again via TTS
+    tts_say(response,
+            "कोई इनपुट नहीं मिला। कृपया दोबारा कॉल करें और 1, 2, 3 या 4 दबाएं।",
+            "hi", speaker="arya")
 
     return twiml_response(response)
 
