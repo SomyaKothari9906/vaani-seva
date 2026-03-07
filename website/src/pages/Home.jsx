@@ -174,7 +174,7 @@ export default function Home() {
               </div>
 
               <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>
-                No smartphone needed &nbsp;\u00b7&nbsp; No internet required &nbsp;\u00b7&nbsp; Works on \u20b9500 phones
+                No smartphone needed &nbsp;·&nbsp; No internet required &nbsp;·&nbsp; Works on ₹500 phones
               </p>
 
             </div>
