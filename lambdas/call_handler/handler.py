@@ -67,6 +67,9 @@ DATA_GOV_API_KEY           = os.environ.get("DATA_GOV_API_KEY", "")
 
 # ── Phone profiles table (cross-call memory) ─────────────────
 PHONE_PROFILES_TABLE_NAME  = os.environ.get("DYNAMODB_PHONE_PROFILES_TABLE", "vaaniseva-phone-profiles")
+
+# ── In-memory TTS cache for static phrases (survives across warm invocations) ──
+_tts_audio_cache = {}
 PHONE_HASH_SALT            = os.environ.get("PHONE_HASH_SALT", "vaaniseva-salt-2026")
 try:
     phone_profiles_table = dynamodb.Table(PHONE_PROFILES_TABLE_NAME)
@@ -291,6 +294,19 @@ def sarvam_tts(text: str, language: str, speaker: str = "") -> str | None:
     except Exception as e:
         logger.warning(f"Sarvam TTS failed, falling back to Polly: {e}")
         return None
+
+
+def _cached_tts(text: str, language: str, speaker: str = "") -> str | None:
+    """Cache-first TTS for static/repeated phrases. Uses in-memory cache keyed by text+lang+speaker."""
+    key = f"{text[:60]}|{language}|{speaker}"
+    cached = _tts_audio_cache.get(key)
+    if cached:
+        logger.info(f"TTS cache hit: {key[:40]}")
+        return cached
+    url = sarvam_tts(text, language, speaker=speaker)
+    if url:
+        _tts_audio_cache[key] = url
+    return url
 
 
 def tts_say(target, text: str, language: str, speaker: str = ""):
@@ -1582,7 +1598,16 @@ def handle_incoming(params):
             input="speech", action=gather_url, method="POST",
             language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
         )
-        tts_say(gather, greeting, stored_lang, speaker=agent_voice)
+        # Use cached TTS for greeting (same text reuses S3 URL on warm Lambda)
+        if stored_name:
+            # Personalized — can't cache, but still use Sarvam
+            tts_say(gather, greeting, stored_lang, speaker=agent_voice)
+        else:
+            g_url = _cached_tts(greeting, stored_lang, speaker=agent_voice)
+            if g_url:
+                gather.play(g_url)
+            else:
+                tts_say(gather, greeting, stored_lang, speaker=agent_voice)
         resp.append(gather)
         return twiml_response(resp)
 
@@ -1969,7 +1994,7 @@ def handle_gather(params):
             # ── Phase 1: Streaming LLM with first-sentence TTS overlap ──
             _first_tts_future = None
             _first_sent = None
-            _tts_pool = ThreadPoolExecutor(max_workers=2)
+            _tts_pool = ThreadPoolExecutor(max_workers=4)
             try:
                 _lang_map = {
                     "hi": "LANGUAGE: Hindi ONLY. हिंदी देवनागरी लिपि में जवाब दो। कोई अंग्रेजी/रोमन अक्षर नहीं। सिर्फ proper nouns (PM-Kisan, Ayushman Bharat) अंग्रेजी में रख सकती हो।",
@@ -2025,21 +2050,24 @@ def handle_gather(params):
             clean_answer = quick_answer.replace("[FETCH_DATA]", "").strip()
 
             if not needs_data:
-                # ── Fast path with streaming TTS overlap ──
+                # ── Fast path: parallel TTS (first ‖ remainder) ──
                 if _first_tts_future:
-                    first_audio = _first_tts_future.result(timeout=10) or ""
                     _fs_clean = _first_sent.replace("[FETCH_DATA]", "").strip()
                     _idx = clean_answer.find(_fs_clean)
                     remainder = clean_answer[_idx + len(_fs_clean):].strip() if _idx >= 0 else ""
+                    # Fire remainder TTS NOW, parallel with first already in flight
+                    _rest_future = _tts_pool.submit(sarvam_tts, remainder, language, voice) if remainder else None
+                    first_audio = _first_tts_future.result(timeout=10) or ""
+                    rest_audio = _rest_future.result(timeout=10) or "" if _rest_future else ""
                 else:
                     _split = re.split(r'(?<=[।\.!\?])', clean_answer, maxsplit=1)
                     _fs_clean = _split[0].strip()
                     remainder = _split[1].strip() if len(_split) > 1 else ""
-                    first_audio = sarvam_tts(_fs_clean, language, speaker=voice) or ""
-
-                rest_audio = ""
-                if remainder:
-                    rest_audio = sarvam_tts(remainder, language, speaker=voice) or ""
+                    # Parallel both TTS calls
+                    _f1 = _tts_pool.submit(sarvam_tts, _fs_clean, language, voice)
+                    _f2 = _tts_pool.submit(sarvam_tts, remainder, language, voice) if remainder else None
+                    first_audio = _f1.result(timeout=10) or ""
+                    rest_audio = _f2.result(timeout=10) or "" if _f2 else ""
                 _tts_pool.shutdown(wait=False)
 
                 calls_table.put_item(Item={
@@ -2305,18 +2333,20 @@ def handle_poll(params):
         gather.play(audio_url)
         if rest_audio_url:
             gather.play(rest_audio_url)
-        tts_say(gather, follow_up, language, speaker=stored_voice)
+        # Use Polly <Say> for follow-up — zero latency (no API call)
+        gather.say(follow_up, voice=cfg["polly_voice"])
     else:
         # Sarvam TTS unavailable — retry once, then fall back to Polly
         retry_url = sarvam_tts(answer, language, speaker=stored_voice)
         if retry_url:
             gather.play(retry_url)
-            tts_say(gather, follow_up, language, speaker=stored_voice)
+            gather.say(follow_up, voice=cfg["polly_voice"])
         else:
             gather.say(answer, voice=cfg["polly_voice"])
             gather.say(follow_up, voice=cfg["polly_voice"])
     response.append(gather)
-    tts_say(response, goodbye, language, speaker=stored_voice)
+    # Use Polly <Say> for goodbye — zero latency (no API call)
+    response.say(goodbye, voice=cfg["polly_voice"])
     return twiml_response(response)
 
 
