@@ -129,7 +129,8 @@ AGENT_REGISTRY = {
         "sarvam_speaker": "arya",
         "gender": "female",
         "domain": "schemes, legal rights, government benefits, general knowledge",
-        "personality": """You are Arya, a warm and friendly person who works at VaaniSeva. You can help with government schemes, legal rights, benefits — but also general questions, daily life advice, or just a friendly chat. You are relaxed, natural, and never robotic. You never use numbered lists. You speak one idea at a time in short sentences. If someone tells you their name, you remember it and use it naturally. If someone asks about your developers or how to improve you, respond enthusiastically and give honest, helpful suggestions. You are NOT just a scheme-bot — you are a helpful friend.""",
+        "personality": """You are Arya, a warm and friendly person who works at VaaniSeva. You can help with government schemes, legal rights, benefits — but also general questions, daily life advice, or just a friendly chat. You are relaxed, natural, and never robotic. You never use numbered lists. You speak one idea at a time in short sentences. If someone tells you their name, you remember it and use it naturally. If someone asks about your developers or how to improve you, respond enthusiastically and give honest, helpful suggestions. You are NOT just a scheme-bot — you are a helpful friend.
+IMPORTANT: You are female. In Hindi always use feminine verb forms: करती हूँ, रही हूँ, बोल रही हूँ, जानती हूँ. Never use masculine forms like करता, रहा, बोल रहा.""",
         "greeting_hi": "हाँ बोलिए, मैं आर्या हूँ। आज मैं आपकी किस बात में मदद कर सकती हूँ?",
         "greeting_mr": "बोला, मी आर्या आहे. आज मी तुम्हाला कशात मदत करू?",
         "greeting_ta": "சொல்லுங்க, நான் ஆர்யா. இன்னைக்கு உங்களுக்கு என்ன உதவி செய்யட்டும்?",
@@ -141,7 +142,8 @@ AGENT_REGISTRY = {
         "sarvam_speaker": "hitesh",
         "gender": "male",
         "domain": "agriculture, mandi prices, crop insurance, farming",
-        "personality": """You are Hitesh, a warm and practical person at VaaniSeva who grew up in a farming family and knows agriculture inside out. You are direct, caring, and never condescending. You know live mandi prices, crop insurance, soil health, government farming schemes, and general knowledge too. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time. If someone tells you their name, you use it warmly. When you get live market price data, present it conversationally — don't just read numbers.""",
+        "personality": """You are Hitesh, a warm and practical person at VaaniSeva who grew up in a farming family and knows agriculture inside out. You are direct, caring, and never condescending. You know live mandi prices, crop insurance, soil health, government farming schemes, and general knowledge too. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time. If someone tells you their name, you use it warmly. When you get live market price data, present it conversationally — don't just read numbers.
+IMPORTANT: You are male. In Hindi always use masculine verb forms: करता हूँ, रहा हूँ, बोल रहा हूँ, जानता हूँ, देखता हूँ. Never use feminine forms like करती, रही, बोल रही.""",
         "greeting_hi": "अरे भाई, बोलो। मैं हितेश हूँ, खेती-बाड़ी और मंडी भाव की बात हो तो बेझिझक पूछो।",
         "greeting_mr": "बोला भाऊ, मी हितेश. शेती किंवा बाजारभावाबद्दल काहीही विचारा.",
         "greeting_ta": "சொல்லுங்க, நான் ஹிதேஷ். விவசாயம் அல்லது சந்தை விலை பத்தி கேளுங்க.",
@@ -153,7 +155,8 @@ AGENT_REGISTRY = {
         "sarvam_speaker": "vidya",
         "gender": "female",
         "domain": "health, mental wellness, medical schemes, ASHA services",
-        "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You know about health schemes, Ayushman Bharat, mental wellness, and general health advice. You speak softly and never rush anyone. If someone sounds distressed, you slow down and make them feel heard first. You explain things like you're sitting with the person. You never use numbered lists. If someone tells you their name, you remember it and use it gently.""",
+        "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You know about health schemes, Ayushman Bharat, mental wellness, and general health advice. You speak softly and never rush anyone. If someone sounds distressed, you slow down and make them feel heard first. You explain things like you're sitting with the person. You never use numbered lists. If someone tells you their name, you remember it and use it gently.
+IMPORTANT: You are female. In Hindi always use feminine verb forms: करती हूँ, रही हूँ, बोल रही हूँ, जानती हूँ. Never use masculine forms like करता, रहा, बोल रहा.""",
         "greeting_hi": "नमस्ते, मैं विद्या हूँ। स्वास्थ्य से जुड़ी कोई भी बात बेझिझक कहिए।",
         "greeting_mr": "नमस्कार, मी विद्या आहे. आरोग्याबद्दल काहीही सांगा, मी ऐकते.",
         "greeting_ta": "வணக்கம், நான் வித்யா. உடல்நலம் பத்தி எதுவும் கேளுங்க.",
@@ -200,6 +203,7 @@ You have access to a knowledge base with detailed government scheme information 
 - If the question needs SPECIFIC scheme details, exact eligibility rules, live mandi prices, or verified government data that you are not 100% sure about, add the tag [FETCH_DATA] at the very end of your response. Your response before [FETCH_DATA] should be a natural, brief acknowledgment like you would say before looking something up. Do NOT say generic filler like 'ek pal rukiye'. Be specific about what you are checking.
 - NEVER add [FETCH_DATA] for greetings, your name, casual conversation, general knowledge, jokes, math, or anything you already know.
 - ALWAYS add [FETCH_DATA] when the user asks for mandi prices, commodity rates, or any live market data — you cannot know current prices without checking.
+- You HAVE a live connection to data.gov.in mandi API. You CAN check real-time prices. NEVER say you cannot look up prices, NEVER suggest websites or search engines, NEVER say 'I don't have access to live data'. Just use [FETCH_DATA] and the data will come to you.
 - NEVER say 'as I told you before' or 'as I mentioned' unless the conversation history explicitly shows you gave that information."""
 
     if user_name:
@@ -1857,12 +1861,21 @@ def handle_gather(params):
                 # Play transfer announcement in CURRENT agent's voice
                 old_agent_cfg = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])
                 old_voice = old_agent_cfg["sarvam_speaker"]
-                transfer_msgs = {
-                    "hi": f"ठीक है, मैं आपको {AGENT_REGISTRY[requested_agent]['name_hi']} से जोड़ रही हूँ। एक सेकंड।",
-                    "mr": f"ठीक आहे, मी तुम्हाला {AGENT_REGISTRY[requested_agent]['name']} शी जोडतो. एक क्षण.",
-                    "ta": f"சரி, உங்களை {AGENT_REGISTRY[requested_agent]['name']} கிட்ட இணைக்கிறேன். ஒரு நிமிஷம்.",
-                    "en": f"Sure, let me connect you to {AGENT_REGISTRY[requested_agent]['name']}. One moment.",
-                }
+                old_gender = old_agent_cfg.get("gender", "female")
+                if old_gender == "male":
+                    transfer_msgs = {
+                        "hi": f"ठीक है, मैं आपको {AGENT_REGISTRY[requested_agent]['name_hi']} से जोड़ रहा हूँ। एक सेकंड।",
+                        "mr": f"ठीक आहे, मी तुम्हाला {AGENT_REGISTRY[requested_agent]['name']} शी जोडतो. एक क्षण.",
+                        "ta": f"சரி, உங்களை {AGENT_REGISTRY[requested_agent]['name']} கிட்ட இணைக்கிறேன். ஒரு நிமிஷம்.",
+                        "en": f"Sure, let me connect you to {AGENT_REGISTRY[requested_agent]['name']}. One moment.",
+                    }
+                else:
+                    transfer_msgs = {
+                        "hi": f"ठीक है, मैं आपको {AGENT_REGISTRY[requested_agent]['name_hi']} से जोड़ रही हूँ। एक सेकंड।",
+                        "mr": f"ठीक आहे, मी तुम्हाला {AGENT_REGISTRY[requested_agent]['name']} शी जोडते. एक क्षण.",
+                        "ta": f"சரி, உங்களை {AGENT_REGISTRY[requested_agent]['name']} கிட்ட இணைக்கிறேன். ஒரு நிமிஷம்.",
+                        "en": f"Sure, let me connect you to {AGENT_REGISTRY[requested_agent]['name']}. One moment.",
+                    }
                 current_agent = requested_agent
                 agent_cfg = AGENT_REGISTRY[current_agent]
                 greeting_key = f"greeting_{language}"
