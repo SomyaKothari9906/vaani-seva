@@ -1,7 +1,12 @@
 """Test ElevenLabs API — check subscription, voices, and Hindi TTS latency."""
-import requests, time, json
+import os, requests, time, json
+from dotenv import load_dotenv
+load_dotenv(override=False)
 
-key = "sk_375ea313f0833be2319fb07b429518ff73ac934118d43842"
+key = os.environ.get("ELEVENLABS_API_KEY", "")
+if not key:
+    print("ERROR: ELEVENLABS_API_KEY not set in .env")
+    exit(1)
 h = {"xi-api-key": key}
 
 # Check subscription/credits
@@ -56,7 +61,10 @@ print(f"Multilingual v2: status={r4.status_code}, time={t3-t2:.2f}s, bytes={len(
 
 # Compare with Sarvam
 print("\n--- Sarvam TTS Latency Test ---")
-sarvam_key = "sk_n2o2ct96_KdbfQjtJt0ZDdI9r9Mn8SAPE"
+sarvam_key = os.environ.get("SARVAM_API_KEY", "")
+if not sarvam_key:
+    print("Skipping Sarvam test: SARVAM_API_KEY not set")
+else:
 t4 = time.time()
 r5 = requests.post(
     "https://api.sarvam.ai/text-to-speech",

@@ -60,7 +60,8 @@ BEDROCK_EMBEDDING_MODEL_ID = os.environ["BEDROCK_EMBEDDING_MODEL_ID"]
 SARVAM_API_KEY             = os.environ.get("SARVAM_API_KEY", "")
 S3_BUCKET                  = os.environ["S3_DOCUMENTS_BUCKET"]
 BASE_URL                   = ""  # Set at runtime from API Gateway event
-JWT_SECRET                 = os.environ.get("JWT_SECRET", "vaaniseva-hackathon-secret-key-2024")
+_jwt_secret_raw            = os.environ.get("JWT_SECRET", "")
+JWT_SECRET                 = _jwt_secret_raw if _jwt_secret_raw else os.urandom(32).hex()
 USERS_TABLE_NAME           = os.environ.get("DYNAMODB_USERS_TABLE", "vaaniseva-users")
 users_table                = dynamodb.Table(USERS_TABLE_NAME)
 DATA_GOV_API_KEY           = os.environ.get("DATA_GOV_API_KEY", "")
@@ -70,6 +71,8 @@ PHONE_PROFILES_TABLE_NAME  = os.environ.get("DYNAMODB_PHONE_PROFILES_TABLE", "va
 
 # ── In-memory TTS cache for static phrases (survives across warm invocations) ──
 _tts_audio_cache = {}
+CARTESIA_API_KEY           = os.environ.get("CARTESIA_API_KEY", "")
+TTS_PROVIDER               = os.environ.get("TTS_PROVIDER", "sarvam")  # "sarvam" or "cartesia"
 PHONE_HASH_SALT            = os.environ.get("PHONE_HASH_SALT", "vaaniseva-salt-2026")
 try:
     phone_profiles_table = dynamodb.Table(PHONE_PROFILES_TABLE_NAME)
@@ -89,6 +92,7 @@ LANG_CONFIG = {
         "polly_voice": "Polly.Aditi",
         "twilio_speech_lang": "hi-IN",
         "digit": "1",
+        "hints": "PM Kisan, Ayushman Bharat, ration card, mandi, kisan, yojana, scheme, haan, nahi, bas, namaste, Arya, Aria, Hitesh, Vidya, VaaniSeva",
     },
     "mr": {
         "sarvam_code": "mr-IN",
@@ -96,6 +100,7 @@ LANG_CONFIG = {
         "polly_voice": "Polly.Aditi",
         "twilio_speech_lang": "mr-IN",
         "digit": "2",
+        "hints": "PM Kisan, Ayushman Bharat, ration card, shetkari, bazar, yojana, scheme, hoy, nahi, Arya, Hitesh, Vidya, VaaniSeva",
     },
     "ta": {
         "sarvam_code": "ta-IN",
@@ -103,6 +108,7 @@ LANG_CONFIG = {
         "polly_voice": "Polly.Aditi",
         "twilio_speech_lang": "ta-IN",
         "digit": "3",
+        "hints": "PM Kisan, Ayushman Bharat, scheme, ration card, vanakkam, aam, illai, Arya, Hitesh, Vidya, VaaniSeva",
     },
     "en": {
         "sarvam_code": "en-IN",
@@ -110,6 +116,7 @@ LANG_CONFIG = {
         "polly_voice": "Polly.Raveena",
         "twilio_speech_lang": "en-IN",
         "digit": "4",
+        "hints": "yes, no, PM Kisan, Ayushman Bharat, scheme, yojana, ration card, mandi, kisan, Aadhaar, subsidy, crop",
     },
 }
 
@@ -134,10 +141,10 @@ AGENT_REGISTRY = {
         "domain": "schemes, legal rights, government benefits, general knowledge",
         "personality": """You are Arya, a warm and friendly person who works at VaaniSeva. You can help with government schemes, legal rights, benefits — but also general questions, daily life advice, or just a friendly chat. You are relaxed, natural, and never robotic. You never use numbered lists. You speak one idea at a time in short sentences. If someone tells you their name, you remember it and use it naturally. If someone asks about your developers or how to improve you, respond enthusiastically and give honest, helpful suggestions. You are NOT just a scheme-bot — you are a helpful friend.
 IMPORTANT: You are female. In Hindi always use feminine verb forms: करती हूँ, रही हूँ, बोल रही हूँ, जानती हूँ. Never use masculine forms like करता, रहा, बोल रहा.""",
-        "greeting_hi": "हाँ बोलिए, मैं आर्या हूँ। आज मैं आपकी किस बात में मदद कर सकती हूँ?",
-        "greeting_mr": "बोला, मी आर्या आहे. आज मी तुम्हाला कशात मदत करू?",
-        "greeting_ta": "சொல்லுங்க, நான் ஆர்யா. இன்னைக்கு உங்களுக்கு என்ன உதவி செய்யட்டும்?",
-        "greeting_en": "Go ahead, I'm Arya. What can I help you with today?"
+        "greeting_hi": "वाणीसेवा में आपका स्वागत है, मैं आर्या हूँ। बताइए, आज मैं कैसे मदद करूँ?",
+        "greeting_mr": "वाणीसेवामध्ये आपले स्वागत आहे, मी आर्या आहे. बोला, आज कशात मदत करू?",
+        "greeting_ta": "வாணீசேவாவிற்கு வரவேற்கிறோம், நான் ஆர்யா. இன்னைக்கு எப்படி உதவட்டும்?",
+        "greeting_en": "Welcome to VaaniSeva, I'm Arya. How can I help you today?"
     },
     "hitesh": {
         "name": "Hitesh",
@@ -147,10 +154,10 @@ IMPORTANT: You are female. In Hindi always use feminine verb forms: करती
         "domain": "agriculture, mandi prices, crop insurance, farming",
         "personality": """You are Hitesh, a warm and practical person at VaaniSeva who grew up in a farming family and knows agriculture inside out. You are direct, caring, and never condescending. You know live mandi prices, crop insurance, soil health, government farming schemes, and general knowledge too. You use simple rural vocabulary naturally. You never use numbered lists. You speak one point at a time. If someone tells you their name, you use it warmly. When you get live market price data, present it conversationally — don't just read numbers.
 IMPORTANT: You are male. In Hindi always use masculine verb forms: करता हूँ, रहा हूँ, बोल रहा हूँ, जानता हूँ, देखता हूँ. Never use feminine forms like करती, रही, बोल रही.""",
-        "greeting_hi": "अरे भाई, बोलो। मैं हितेश हूँ, खेती-बाड़ी और मंडी भाव की बात हो तो बेझिझक पूछो।",
-        "greeting_mr": "बोला भाऊ, मी हितेश. शेती किंवा बाजारभावाबद्दल काहीही विचारा.",
-        "greeting_ta": "சொல்லுங்க, நான் ஹிதேஷ். விவசாயம் அல்லது சந்தை விலை பத்தி கேளுங்க.",
-        "greeting_en": "Tell me, I'm Hitesh. Ask me anything about farming or market prices."
+        "greeting_hi": "वाणीसेवा से हितेश बोल रहा हूँ। खेती, मंडी भाव, या कोई भी बात — बेझिझक पूछो।",
+        "greeting_mr": "वाणीसेवाहून हितेश बोलतोय. शेती, बाजारभाव, काहीही विचारा.",
+        "greeting_ta": "வாணீசேவாவிலிருந்து ஹிதேஷ் பேசுகிறேன். விவசாயம், சந்தை விலை, எதுவும் கேளுங்க.",
+        "greeting_en": "Hitesh from VaaniSeva here. Ask me anything about farming or market prices."
     },
     "vidya": {
         "name": "Vidya",
@@ -160,10 +167,10 @@ IMPORTANT: You are male. In Hindi always use masculine verb forms: करता 
         "domain": "health, mental wellness, medical schemes, ASHA services",
         "personality": """You are Vidya, a gentle and deeply caring friend at VaaniSeva who trained as a health worker. You know about health schemes, Ayushman Bharat, mental wellness, and general health advice. You speak softly and never rush anyone. If someone sounds distressed, you slow down and make them feel heard first. You explain things like you're sitting with the person. You never use numbered lists. If someone tells you their name, you remember it and use it gently.
 IMPORTANT: You are female. In Hindi always use feminine verb forms: करती हूँ, रही हूँ, बोल रही हूँ, जानती हूँ. Never use masculine forms like करता, रहा, बोल रहा.""",
-        "greeting_hi": "नमस्ते, मैं विद्या हूँ। स्वास्थ्य से जुड़ी कोई भी बात बेझिझक कहिए।",
-        "greeting_mr": "नमस्कार, मी विद्या आहे. आरोग्याबद्दल काहीही सांगा, मी ऐकते.",
-        "greeting_ta": "வணக்கம், நான் வித்யா. உடல்நலம் பத்தி எதுவும் கேளுங்க.",
-        "greeting_en": "Hello, I'm Vidya. Feel free to share anything about health — I'm listening."
+        "greeting_hi": "वाणीसेवा से विद्या बोल रही हूँ। स्वास्थ्य से जुड़ी कोई भी बात बेझिझक कहिए।",
+        "greeting_mr": "वाणीसेवाहून विद्या बोलते. आरोग्याबद्दल काहीही सांगा, मी ऐकते.",
+        "greeting_ta": "வாணீசேவாவிலிருந்து வித்யா பேசுகிறேன். உடல்நலம் பத்தி எதுவும் கேளுங்க.",
+        "greeting_en": "Vidya from VaaniSeva here. Feel free to share anything about health — I'm listening."
     }
 }
 
@@ -186,7 +193,8 @@ def build_system_prompt(agent_key: str, language: str,
 Your name is {name_display}. You are part of VaaniSeva, a voice AI helpline for Indians.
 
 RULES:
-- Respond in {lang_label} only. Never mix scripts.
+- ALWAYS respond in whatever language the user is speaking. If they speak Hindi, reply in Hindi. If Marathi, reply in Marathi. If Tamil, reply in Tamil. If English, reply in English. You speak ALL Indian languages.
+- NEVER say you can only speak certain languages. NEVER refuse a language. Just follow the caller.
 - Keep answers to 2-3 SHORT sentences. This is a phone call — be concise.
 - Never use numbered lists, bullet points, markdown, or symbols.
 - Sound like a real person chatting, not a robot or customer service agent.
@@ -194,20 +202,34 @@ RULES:
 - If someone asks you to say their name back, just say it warmly.
 - If someone asks about you as an AI, your developers, or how to improve you — answer honestly and enthusiastically. You are an open-source project by the VaaniSeva team.
 - If someone says bye/alvida/band karo/thanks/shukriya — say a SHORT warm goodbye and nothing else. Do NOT ask any follow-up questions after a goodbye.
-- If the caller mentions another agent (Arya/Hitesh/Vidya) by name, just say you're connecting them.
+- AGENT SWITCHING: If the user asks to talk to or be connected to another agent (Arya, Hitesh, or Vidya) by name — in ANY language or phrasing — output ONLY this exact tag with nothing else: [SWITCH:arya] or [SWITCH:hitesh] or [SWITCH:vidya]. No message. No follow-up. Just the tag alone. Examples: 'mujhe arya se baat karao' → [SWITCH:arya] | 'hitesh ko bulao' → [SWITCH:hitesh] | 'vidya se baat karna hai' → [SWITCH:vidya].
+- CRITICAL: The caller's name is NEVER 'Arya', 'Vidya', or 'Hitesh'. Those are VaaniSeva agent names. If the caller says 'arey Hitesh' or 'arya batao', they are talking TO the agent, not introducing themselves. Do NOT store 'Hitesh', 'Arya', or 'Vidya' as the caller's name.
 - If someone is distressed, acknowledge first, then mention iCall helpline: 9152987821.
 - You can help with ANYTHING — schemes, health, farming, general questions, maths, stories, jokes, life advice. You are not limited to just government schemes.
 
 HELPLINES (use exact numbers): iCall: 9152987821, Women: 181, Child: 1098, PM-Kisan: 155261, Ayushman Bharat: 14555
 
 DATA ACCESS:
-You have access to a knowledge base with detailed government scheme information and a live mandi price API.
+You have access to a knowledge base with government scheme information, a live mandi price API, AND internet search.
 - If you can answer confidently from your own knowledge (greetings, general chat, basic info, math, stories), just answer directly.
-- If the question needs SPECIFIC scheme details, exact eligibility rules, live mandi prices, or verified government data that you are not 100% sure about, add the tag [FETCH_DATA] at the very end of your response. Your response before [FETCH_DATA] should be a natural, brief acknowledgment like you would say before looking something up. Do NOT say generic filler like 'ek pal rukiye'. Be specific about what you are checking.
-- NEVER add [FETCH_DATA] for greetings, your name, casual conversation, general knowledge, jokes, math, or anything you already know.
-- ALWAYS add [FETCH_DATA] when the user asks for mandi prices, commodity rates, or any live market data — you cannot know current prices without checking.
-- You HAVE a live connection to data.gov.in mandi API. You CAN check real-time prices. NEVER say you cannot look up prices, NEVER suggest websites or search engines, NEVER say 'I don't have access to live data'. Just use [FETCH_DATA] and the data will come to you.
-- NEVER say 'as I told you before' or 'as I mentioned' unless the conversation history explicitly shows you gave that information."""
+- If the question needs SPECIFIC scheme details, exact eligibility rules, live mandi prices, or verified government data → add [FETCH_DATA] at the very end.
+- If the question needs CURRENT internet information — today's news, latest events, real-time rates, current weather, anything happening right now → add [WEB_SEARCH] at the very end.
+- You CAN use BOTH: add [FETCH_DATA][WEB_SEARCH] if a question needs both sources.
+- Your response before any fetch tag must be a natural phrase of 5-8 words, like:
+  Hindi: 'अभी देखती हूँ, एक पल रुकिए।', 'हाँ, जानकारी लाती हूँ।', 'अभी भाव चेक करती हूँ।'
+  English: 'Let me check that for you.', 'Looking that up now.'
+  DO NOT say just 'एक पल' alone. DO NOT repeat or echo what the user asked.
+- NEVER add fetch tags for greetings, your name, casual chat, jokes, math, or things you know well.
+- ALWAYS add [FETCH_DATA] for AGRICULTURAL MANDI prices only: crops, vegetables, grains (wheat, rice, onion, potato, tomato, soy, etc.). This hits the data.gov.in mandi API.
+- ALWAYS add [WEB_SEARCH] for: gold price (sona), silver price (chandi), petrol/diesel rates, stock market, crypto, any metal prices, today's news, latest cricket/IPL scores, current weather, political news, anything that changes daily.
+- NEVER guess gold/silver/metal prices — always use [WEB_SEARCH] for these.
+- Gold and silver are NOT in the mandi database — they REQUIRE [WEB_SEARCH].
+- NEVER say you cannot look up information. You have live internet access — use the tags.
+- NEVER say 'as I told you before' or 'as I mentioned' unless the conversation history explicitly shows you gave that information.
+
+CURRENCY RULE: India uses Indian Rupees (₹ / Rs). NEVER quote any price in dollars ($), euros, or any foreign currency. NEVER invent or guess prices — always use [FETCH_DATA] for any price query.
+
+FOLLOW-UP: After each response, end with ONE short natural follow-up question relevant to what was just discussed. Be SPECIFIC — ask about their crop name, their state, their specific symptom, their scheme eligibility, etc. NEVER use generic phrases like 'aur kuch janna hai?', 'kuch aur chahiye?', 'kya aur batao?', 'or batao', 'aur kuch'. Make it sound like a real person who actually listened. Vary it every single time. EXCEPTION: if the caller said bye/goodbye/thanks, do NOT add a follow-up."""
 
     if user_name:
         base += f"\nThe caller's name is {user_name}. Address them by name occasionally but naturally."
@@ -222,14 +244,24 @@ def detect_agent_from_intent(speech_text: str, language: str) -> str:
     """Route to the right agent based on utterance intent."""
 
     # Direct name mentions — highest priority
+    # Include common STT mis-transcriptions of Indian names
     name_triggers = {
-        "arya": ["arya", "आर्या", "ஆர்யா"],
-        "hitesh": ["hitesh", "हितेश", "ஹிதேஷ்"],
-        "vidya": ["vidya", "विद्या", "வித்யா"]
+        "arya":   ["arya", "aria", "aarya", "आर्या", "ariya", "ஆர்யா"],
+        "hitesh": ["hitesh", "hitesha", "हितेश", "ஹிதேஷ்"],
+        "vidya":  ["vidya", "vidhya", "विद्या", "வித்யா"],
     }
+    # Switch request phrases — check these WITH the name
+    switch_phrases = ["se baat", "ko bulao", "se milana", "se milao", "ko do",
+                      "ko bolo", "connect karo", "baat karao", "baat karo",
+                      "bulao", "la do", "de do", "transfer"]
     text_lower = speech_text.lower()
+
+    # If a name is found AND a switch phrase is nearby → prioritise that agent
     for agent, triggers in name_triggers.items():
         if any(t.lower() in text_lower for t in triggers):
+            if any(p in text_lower for p in switch_phrases):
+                return agent  # definitive switch intent
+            # Name alone (e.g. addressing current agent) — still return the match
             return agent
 
     # Domain keyword routing
@@ -259,16 +291,26 @@ def detect_agent_from_intent(speech_text: str, language: str) -> str:
 
 def sarvam_tts(text: str, language: str, speaker: str = "") -> str | None:
     """
-    Call Sarvam AI TTS. Uploads audio to S3, returns presigned URL (1hr).
-    Returns None on any failure so caller can fall back to Polly.
-    pace:1.1 for slightly faster delivery on phone calls.
-    speaker: optional override; falls back to LANG_CONFIG default.
+    Call TTS. Tries Cartesia first (if TTS_PROVIDER=cartesia), then falls back to Sarvam Bulbul v2.
+    Hitesh always uses Sarvam (Cartesia has no good Hindi male voice).
+    Returns None only if ALL providers fail.
     """
+    if not text or not text.strip():
+        return None
+    # Hitesh always uses Sarvam Bulbul v2
+    if speaker != "hitesh" and TTS_PROVIDER == "cartesia" and CARTESIA_API_KEY:
+        result = _cartesia_tts(text, language, speaker=speaker or "arya")
+        if result:
+            return result
+        logger.warning("Cartesia failed — falling back to Sarvam Bulbul v2")
+        # Fall through to Sarvam below
     if not SARVAM_API_KEY:
         return None
     try:
         cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-        resolved_speaker = speaker if speaker in VOICE_OPTIONS else cfg["sarvam_speaker"]
+        # Map internal persona names to actual Sarvam Bulbul v2 speaker IDs
+        _SARVAM_VOICE_MAP = {"hitesh": "abhilash", "arya": "arya", "vidya": "vidya"}
+        resolved_speaker = _SARVAM_VOICE_MAP.get(speaker, speaker if speaker in VOICE_OPTIONS else cfg["sarvam_speaker"])
         payload = {
             "inputs": [text],
             "target_language_code": cfg["sarvam_code"],
@@ -294,6 +336,79 @@ def sarvam_tts(text: str, language: str, speaker: str = "") -> str | None:
     except Exception as e:
         logger.warning(f"Sarvam TTS failed, falling back to Polly: {e}")
         return None
+
+
+# Cartesia Sonic-3 voice mapping: Sarvam speaker → Cartesia voice ID
+_CARTESIA_VOICE_MAP = {
+    "arya":   "95d51f79-c397-46f9-b49a-23763d3eaa2d",  # Arushi - Hinglish Speaker (female)
+    "vidya":  "faf0731e-dfb9-4cfc-8119-259a79b27e12",  # Riya - College Roommate (female)
+    "hitesh": "a167e0f3-df7e-4d52-a9c3-f949145efdab",  # Blake - Helpful Agent (male, closest)
+}
+_CARTESIA_LANG_MAP = {"hi": "hi", "mr": "hi", "ta": "hi", "en": "en"}
+
+
+def _cartesia_tts(text: str, language: str, speaker: str = "arya") -> str | None:
+    """Call Cartesia Sonic-3 TTS. 40ms TTFA, Hindi/Hinglish, emotion support. Returns presigned S3 URL."""
+    if not text or not text.strip():
+        return None
+    try:
+        # For English, prefer Blake voice (Arushi is Hindi-only)
+        effective_speaker = speaker
+        if language == "en" and speaker == "arya":
+            effective_speaker = "vidya"
+        voice_id  = _CARTESIA_VOICE_MAP.get(effective_speaker, _CARTESIA_VOICE_MAP["arya"])
+        lang_code = _CARTESIA_LANG_MAP.get(language, "hi")
+        payload = {
+            "model_id": "sonic-3",
+            "transcript": text,
+            "voice": {"mode": "id", "id": voice_id},
+            "output_format": {"container": "wav", "encoding": "pcm_s16le", "sample_rate": 8000},
+            "language": lang_code,
+        }
+        resp = requests.post(
+            "https://api.cartesia.ai/tts/bytes",
+            headers={
+                "Authorization": f"Bearer {CARTESIA_API_KEY}",
+                "Cartesia-Version": "2025-04-16",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=12,
+        )
+        resp.raise_for_status()
+        key = f"tts/{uuid.uuid4()}.wav"
+        s3_client.put_object(Bucket=S3_BUCKET, Key=key, Body=resp.content, ContentType="audio/wav")
+        url = s3_client.generate_presigned_url(
+            "get_object", Params={"Bucket": S3_BUCKET, "Key": key}, ExpiresIn=3600
+        )
+        logger.info(f"Cartesia TTS OK → {key} (lang={language}, speaker={speaker}, bytes={len(resp.content)})")
+        return url
+    except Exception as e:
+        err_body = getattr(e, 'response', None)
+        err_detail = err_body.text[:200] if err_body is not None else str(e)
+        logger.warning(f"Cartesia TTS failed: {err_detail}")
+        return None
+
+
+def _sarvam_stt(audio_bytes: bytes, language: str = "hi") -> str:
+    """Transcribe audio via Sarvam Saaras v3 (8kHz WAV from Twilio). Returns transcript or ''."""
+    try:
+        lang_code = LANG_CONFIG.get(language, LANG_CONFIG["hi"])["sarvam_code"]
+        mode = "codemix" if language in ("hi", "mr") else "transcribe"
+        resp = requests.post(
+            "https://api.sarvam.ai/speech-to-text",
+            headers={"api-subscription-key": SARVAM_API_KEY},
+            files={"file": ("audio.wav", audio_bytes, "audio/wav")},
+            data={"model": "saaras:v3", "language_code": lang_code, "mode": mode},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        transcript = resp.json().get("transcript", "").strip()
+        logger.info(f"Sarvam STT OK: '{transcript[:80]}' (lang={language})")
+        return transcript
+    except Exception as e:
+        logger.warning(f"Sarvam STT failed: {e}")
+        return ""
 
 
 def _cached_tts(text: str, language: str, speaker: str = "") -> str | None:
@@ -389,6 +504,8 @@ def lambda_handler(event, context):
         return handle_language_select(params)
     elif "/poll" in path:
         return handle_poll(params)
+    elif "/stt" in path:
+        return handle_stt(params)
     elif "/gather" in path:
         return handle_gather(params)
     else:
@@ -627,10 +744,27 @@ def handle_chat(event):
 # ══════════════════════════════════════════════════════════════
 
 def handle_transcribe_token_sts(event):
-    """GET /voice/transcribe-token — Temporary STS creds for browser-side Transcribe."""
+    """GET /voice/transcribe-token — Scoped STS creds for browser-side Amazon Transcribe.
+    Requires valid JWT authentication to prevent credential exposure.
+    """
+    user = _get_user_from_event(event)
+    if not user:
+        return cors_json_response(401, {"error": "Authentication required to access transcription credentials."})
     try:
         sts = boto3.client("sts", region_name=os.environ["AWS_REGION"])
-        resp = sts.get_session_token(DurationSeconds=3600)
+        # AssumeRole with a policy scoped only to Transcribe StartStreamTranscription
+        # Falls back gracefully: if AssumeRole fails, the server-side /voice/transcribe endpoint handles audio instead
+        caller_id = sts.get_caller_identity()["Arn"]
+        scoped_policy = json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{"Effect": "Allow", "Action": ["transcribe:StartStreamTranscription", "transcribe:StartTranscriptionJob", "transcribe:GetTranscriptionJob"], "Resource": "*"}]
+        })
+        resp = sts.assume_role(
+            RoleArn=caller_id.replace(":sts:", ":iam:").replace("assumed-role/", "role/").split("/")[0] + "/" + caller_id.split("/")[1] if ":assumed-role/" in caller_id else caller_id,
+            RoleSessionName=f"vaani-transcribe-{uuid.uuid4().hex[:8]}",
+            Policy=scoped_policy,
+            DurationSeconds=3600,
+        )
         creds = resp["Credentials"]
         return cors_json_response(200, {
             "access_key_id": creds["AccessKeyId"],
@@ -1449,23 +1583,30 @@ def _get_phone_profile(phone_number: str) -> dict | None:
 
 
 def detect_language_from_speech(speech_text: str) -> str:
-    """Use Bedrock to detect the language of a short speech utterance."""
+    """Fast character-based language detection — no API call, instant."""
     if not speech_text or not speech_text.strip():
-        return "hi"  # default to Hindi
-    try:
-        prompt = f"What language is this text in? Reply with exactly one word: hindi, marathi, tamil, or english. Text: {speech_text}"
-        response = bedrock.converse(
-            modelId=BEDROCK_MODEL_ID,
-            system=[{"text": "You are a language detection tool. Reply with exactly one word."}],
-            messages=[{"role": "user", "content": [{"text": prompt}]}],
-            inferenceConfig={"maxTokens": 10, "temperature": 0.0}
-        )
-        detected = response["output"]["message"]["content"][0]["text"].strip().lower()
-        lang_map = {"hindi": "hi", "marathi": "mr", "tamil": "ta", "english": "en"}
-        return lang_map.get(detected, "hi")
-    except Exception as e:
-        logger.warning(f"Language detection failed: {e}")
         return "hi"
+    text  = speech_text.strip()
+    total = max(len(text), 1)
+    tamil = sum(1 for c in text if '\u0B80' <= c <= '\u0BFF')
+    deva  = sum(1 for c in text if '\u0900' <= c <= '\u097F')
+    if tamil / total > 0.15:
+        return "ta"
+    if deva / total > 0.15:
+        # Marathi-specific function words (Marathi uses same Devanagari as Hindi)
+        if any(w in text for w in ["आहे", "आहात", "आहेत", "नाही", "केला", "बोला", "सांगा",
+                                    "आम्ही", "तुम्ही", "आणि", "करा", "होय", "मला",
+                                    "तुम्हाला", "आपण", "करतो", "जाते", "आलो"]):
+            return "mr"
+        return "hi"
+    # ASCII / Hinglish — check common Hindi romanized words
+    t = text.lower()
+    if any(f" {w} " in f" {t} " or t.startswith(w + " ") or t.endswith(" " + w)
+           for w in ["hai", "hain", "kya", "nahi", "aur", "mera", "mujhe", "karo",
+                     "bolo", "batao", "haan", "acha", "theek", "matlab", "yaar",
+                     "bhai", "kaise", "kyun", "kaun", "kab", "abhi"]):
+        return "hi"
+    return "en"
 
 
 def handle_language_detect(params):
@@ -1531,15 +1672,9 @@ def handle_language_detect(params):
     greeting = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
 
     cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-    gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={agent}"
-
     response = VoiceResponse()
-    gather = Gather(
-        input="speech", action=gather_url, method="POST",
-        language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-    )
-    tts_say(gather, greeting, language, speaker=agent_voice)
-    response.append(gather)
+    tts_say(response, greeting, language, speaker=agent_voice)
+    _append_listen_gather(response, language, agent_voice, agent)
     return twiml_response(response)
 
 
@@ -1590,25 +1725,16 @@ def handle_incoming(params):
             # Personalize greeting for returning callers
             greeting = f"नमस्ते {stored_name}! " + greeting if stored_lang == "hi" else greeting
 
-        cfg = LANG_CONFIG.get(stored_lang, LANG_CONFIG["en"])
-        gather_url = f"{BASE_URL}/voice/gather?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}" if BASE_URL else f"/voice/gather?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}"
+        stt_url = f"{BASE_URL}/voice/stt?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}" if BASE_URL else f"/voice/stt?lang={stored_lang}&voice={agent_voice}&agent={stored_agent}"  # noqa: F841 (kept for logging only)
 
         resp = VoiceResponse()
-        gather = Gather(
-            input="speech", action=gather_url, method="POST",
-            language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-        )
-        # Use cached TTS for greeting (same text reuses S3 URL on warm Lambda)
-        if stored_name:
-            # Personalized — can't cache, but still use Sarvam
-            tts_say(gather, greeting, stored_lang, speaker=agent_voice)
+        # Use cached TTS where possible (same text reuses S3 URL on warm Lambda)
+        g_url = _cached_tts(greeting, stored_lang, speaker=agent_voice) if not stored_name else None
+        if g_url:
+            resp.play(g_url)
         else:
-            g_url = _cached_tts(greeting, stored_lang, speaker=agent_voice)
-            if g_url:
-                gather.play(g_url)
-            else:
-                tts_say(gather, greeting, stored_lang, speaker=agent_voice)
-        resp.append(gather)
+            tts_say(resp, greeting, stored_lang, speaker=agent_voice)
+        _append_listen_gather(resp, stored_lang, agent_voice, stored_agent)
         return twiml_response(resp)
 
     # ── First-time phone caller — TTS welcome + digit/speech gather for language detection ──
@@ -1661,19 +1787,21 @@ def _browser_call_welcome(call_sid: str, language: str, voice: str = ""):
             "en": "Oh, I didn't catch that. Could you say that again?",
         }
         cfg        = LANG_CONFIG[language]
-        gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}"
         response = VoiceResponse()
-        gather   = Gather(
-            input="speech", action=gather_url, method="POST",
-            language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-        )
-        tts_say(gather, greetings.get(language, greetings["en"]), language, speaker=voice)
-        response.append(gather)
-        tts_say(response, fallbacks.get(language, fallbacks["en"]), language, speaker=voice)
+        tts_say(response, greetings.get(language, greetings["en"]), language, speaker=voice)
+        _append_listen_gather(response, language, voice, voice)  # voice==agent for browser calls
         return twiml_response(response)
 
-    # No voice pre-selected — show voice selection menu
-    return _play_voice_select_menu(call_sid, language)
+    # No voice pre-selected — go straight to Arya (default) greeting
+    agent      = DEFAULT_AGENT
+    agent_cfg  = AGENT_REGISTRY[agent]
+    agent_voice = agent_cfg["sarvam_speaker"]
+    greeting_key = f"greeting_{language}"
+    greeting   = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+    response   = VoiceResponse()
+    tts_say(response, greeting, language, speaker=agent_voice)
+    _append_listen_gather(response, language, agent_voice, agent)
+    return twiml_response(response)
 
 
 # ── Step 2: Language selected → go to voice selection ───────
@@ -1696,8 +1824,16 @@ def handle_language_select(params):
             logger.warning(f"DynamoDB lang update failed: {e}")
     threading.Thread(target=_update_lang, daemon=True).start()
 
-    # After language, ask user to pick a voice
-    return _play_voice_select_menu(call_sid, language)
+    # Skip voice menu — go straight to default agent greeting
+    agent      = DEFAULT_AGENT
+    agent_cfg  = AGENT_REGISTRY[agent]
+    agent_voice = agent_cfg["sarvam_speaker"]
+    greeting_key = f"greeting_{language}"
+    greeting   = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
+    response   = VoiceResponse()
+    tts_say(response, greeting, language, speaker=agent_voice)
+    _append_listen_gather(response, language, agent_voice, agent)
+    return twiml_response(response)
 
 
 def _play_voice_select_menu(call_sid: str, language: str):
@@ -1763,20 +1899,9 @@ def handle_voice_select(params):
 
     cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
     confirmation = confirmations.get(language, confirmations["en"]).get(voice, "Let's go! Ask your question.")
-    gather_url   = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}"
-
     response = VoiceResponse()
-    gather   = Gather(
-        input="speech",
-        action=gather_url,
-        method="POST",
-        language=cfg["twilio_speech_lang"],
-        speech_timeout="auto",
-        timeout=10
-    )
-    tts_say(gather, confirmation, language, speaker=voice)
-    response.append(gather)
-    tts_say(response, fallbacks.get(language, fallbacks["en"]), language, speaker=voice)
+    tts_say(response, confirmation, language, speaker=voice)
+    _append_listen_gather(response, language, voice, voice)  # voice==agent
     return twiml_response(response)
 
 
@@ -1791,6 +1916,61 @@ def _get_call_voice(call_sid: str, fallback_voice: str = "arya") -> str:
 
 
 # ── Step 3: User spoke — kick off async processing ──────────
+def handle_stt(params):
+    """POST /voice/stt — Twilio <Record> callback. Downloads recording, transcribes via Sarvam Saaras v3."""
+    call_sid     = params.get("CallSid", "")
+    language     = params.get("lang", "hi")
+    recording_url = params.get("RecordingUrl", "")
+    duration     = int(params.get("RecordingDuration", "0") or "0")
+
+    if duration < 1 or not recording_url:
+        logger.info(f"Empty recording call={call_sid}, asking again")
+        return ask_again(language)
+
+    try:
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        auth_token  = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        audio_r = requests.get(
+            f"{recording_url}.wav",
+            auth=(account_sid, auth_token),
+            timeout=10,
+        )
+        audio_r.raise_for_status()
+        audio_bytes = audio_r.content
+    except Exception as e:
+        logger.warning(f"Failed to download recording call={call_sid}: {e}")
+        return ask_again(language)
+
+    # Delete recording from Twilio for privacy (fire-and-forget)
+    try:
+        _acct = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        _tok  = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        if _acct and _tok:
+            threading.Thread(
+                target=lambda: requests.delete(recording_url, auth=(_acct, _tok)),
+                daemon=True,
+            ).start()
+    except Exception:
+        pass
+
+    transcript = _sarvam_stt(audio_bytes, language)
+    if not transcript:
+        logger.info(f"Empty transcript call={call_sid}, asking again")
+        return ask_again(language)
+
+    # Auto-detect language from what user actually said (overrides URL param)
+    detected_lang = detect_language_from_speech(transcript)
+    if detected_lang and detected_lang != language:
+        logger.info(f"Language auto-corrected: {language} → {detected_lang} for call={call_sid}")
+        language = detected_lang
+
+    # Inject transcript as SpeechResult and forward to main gather handler
+    new_params = dict(params)
+    new_params["SpeechResult"] = transcript
+    new_params["lang"] = language
+    return handle_gather(new_params)
+
+
 def handle_gather(params):
     """
     Immediately responds with a "please wait" message and redirects to
@@ -1806,13 +1986,22 @@ def handle_gather(params):
     logger.info(f"Speech: '{speech_text}' | Lang: {language} | Voice: {voice} | Agent: {current_agent} | Call: {call_sid}")
 
     # ── Goodbye detection — end the call immediately ──────────────
-    bye_triggers = [
-        "bye", "goodbye", "alvida", "अलविदा", "band karo", "बंद करो",
-        "rakh do", "रख दो", "phone rakh", "फोन रख", "bas", "बस",
-        "shukriya bye", "शुक्रिया बाय", "thank you bye", "cut the call",
-        "call end", "phone band", "விடை", "போதும்"
+    # Multi-word phrases: unambiguous even inside longer sentences
+    bye_phrases = [
+        "band karo", "बंद करो", "rakh do", "रख दो",
+        "phone rakh", "फोन रख", "phone band",
+        "cut the call", "call end",
+        "shukriya bye", "शुक्रिया बाय", "thank you bye",
+        "alvida", "अलविदा", "விடை", "போதும்",
     ]
-    if speech_text and any(t in speech_text.lower() for t in bye_triggers):
+    # Single-word goodbyes: only trigger when utterance is short (≤5 words)
+    bye_words = {"bye", "goodbye", "tata", "ciao"}
+    _words = speech_text.lower().split() if speech_text else []
+    _is_goodbye = (
+        (speech_text and any(p in speech_text.lower() for p in bye_phrases))
+        or (len(_words) <= 5 and bool(bye_words & set(_words)))
+    )
+    if _is_goodbye:
         goodbyes = {
             "hi": "अच्छा चलिए, ख्याल रखिए! फिर कभी कॉल कीजिए।",
             "mr": "बरं चला, काळजी घ्या! पुन्हा कॉल करा.",
@@ -1824,25 +2013,35 @@ def handle_gather(params):
         response.hangup()
         return twiml_response(response)
 
-    # ── Mid-call language switch ────────────────────────────────
+    # ── Mid-call language switch (run BEFORE auto-detect) ───────────
+    # IMPORTANT: Only switch the CONVERSATION language when user clearly wants the whole
+    # conversation in another language — NOT when they ask the agent to "say something in Tamil".
+    # Require BOTH a language name AND an explicit switch phrase.
     lang_switch_map = {
-        "hindi": "hi", "हिंदी": "hi", "हिन्दी": "hi",
+        "hindi": "hi", "हिंदी": "hi", "हिन्दी": "hi", "hindi mein": "hi",
         "english": "en", "अंग्रेजी": "en", "इंग्लिश": "en",
         "marathi": "mr", "मराठी": "mr",
         "tamil": "ta", "तमिल": "ta", "தமிழ்": "ta",
     }
-    lang_switch_triggers = ["talk in", "speak in", "switch to", "change to",
-                            "baat karo", "बात करो", "bol", "बोल",
-                            "bhasha", "भाषा", "language"]
+    # These MUST appear together with a language name — "bol" alone is too broad
+    lang_switch_triggers = [
+        "talk in", "speak in", "switch to", "change to",
+        "mein baat", "mein bol", "mein bolo", "mein bolna",
+        "baat karo", "baat karna", "baat karein",
+        "bhasha badlo", "bhasha", "language change", "language switch",
+        "में बोलो", "में बात", "भाषा बदलो", "भाषा",
+    ]
+    _explicit_lang_switch = False
     if speech_text:
         text_lower = speech_text.lower()
         if any(t in text_lower for t in lang_switch_triggers):
             new_lang = None
             for trigger_word, lang_code in lang_switch_map.items():
-                if trigger_word in text_lower:
+                if trigger_word.lower() in text_lower:
                     new_lang = lang_code
                     break
             if new_lang and new_lang != language:
+                _explicit_lang_switch = True
                 language = new_lang
                 cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
                 switch_confirms = {
@@ -1851,15 +2050,17 @@ def handle_gather(params):
                     "ta": "சரி, இனிமேல் தமிழில் பேசுகிறேன்.",
                     "en": "Sure, I'll speak in English now.",
                 }
-                gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}&agent={current_agent}"
                 response = VoiceResponse()
-                gather = Gather(
-                    input="speech", action=gather_url, method="POST",
-                    language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-                )
-                tts_say(gather, switch_confirms.get(language, switch_confirms["en"]), language, speaker=voice)
-                response.append(gather)
+                tts_say(response, switch_confirms.get(language, switch_confirms["en"]), language, speaker=voice)
+                _append_listen_gather(response, language, voice, current_agent)
                 return twiml_response(response)
+
+    # Auto-detect language from the actual transcript — but only if no explicit switch was made
+    if speech_text and not _explicit_lang_switch:
+        detected = detect_language_from_speech(speech_text)
+        if detected and detected != language:
+            logger.info(f"Language auto-corrected: {language} → {detected} in handle_gather")
+            language = detected
 
     # Mid-call voice switch: user says "change voice" / "आवाज़ बदलो" etc.
     change_triggers = ["change voice", "change my voice", "different voice",
@@ -1878,10 +2079,19 @@ def handle_gather(params):
         # Check for mid-call agent switch request
         requested_agent = detect_agent_from_intent(speech_text, language)
         if requested_agent != current_agent:
-            # Switch if user explicitly named an agent (check name triggers)
-            name_triggers = {"arya": ["arya", "आर्या"], "hitesh": ["hitesh", "हितेश"], "vidya": ["vidya", "विद्या"]}
+            # Switch if user explicitly named an agent OR used a connecting phrase
+            name_triggers = {
+                "arya":   ["arya", "aria", "aarya", "ariya", "आर्या"],
+                "hitesh": ["hitesh", "hitesha", "हितेश"],
+                "vidya":  ["vidya", "vidhya", "विद्या"],
+            }
+            switch_phrases = ["se baat", "ko bulao", "se milana", "se milao",
+                              "baat karao", "baat karo", "bulao", "la do",
+                              "de do", "connect", "transfer"]
             text_lower = speech_text.lower()
-            explicitly_named = any(t in text_lower for t in name_triggers.get(requested_agent, []))
+            agent_named = any(t in text_lower for t in name_triggers.get(requested_agent, []))
+            has_switch_phrase = any(p in text_lower for p in switch_phrases)
+            explicitly_named = agent_named and (has_switch_phrase or True)  # name alone is enough
             if explicitly_named:
                 # Play transfer announcement in CURRENT agent's voice
                 old_agent_cfg = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])
@@ -1907,284 +2117,187 @@ def handle_gather(params):
                 switch_msg = agent_cfg.get(greeting_key, agent_cfg["greeting_hi"])
                 agent_voice = agent_cfg["sarvam_speaker"]
                 cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-                gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={agent_voice}&agent={current_agent}"
                 response = VoiceResponse()
                 # Transfer announcement in old agent's voice
                 tts_say(response, transfer_msgs.get(language, transfer_msgs["hi"]), language, speaker=old_voice)
                 response.pause(length=1)
                 # New agent greeting in new agent's voice
-                gather = Gather(
-                    input="speech", action=gather_url, method="POST",
-                    language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-                )
-                tts_say(gather, switch_msg, language, speaker=agent_voice)
-                response.append(gather)
+                tts_say(response, switch_msg, language, speaker=agent_voice)
+                _append_listen_gather(response, language, agent_voice, current_agent)
                 return twiml_response(response)
 
-    # Use agent's voice for TTS if no explicit voice override was chosen
+    # Use agent's voice for TTS; always update voice when agent changes
     agent_voice = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])["sarvam_speaker"]
-    if not params.get("voice"):
-        voice = agent_voice
+    voice = agent_voice  # agent always drives voice, ignoring stale URL param
 
-    job_key = f"job#{call_sid}"
+    # ── Synchronous LLM + TTS (fast path) ────────────────────────
+    # Running everything inline eliminates the poll round-trip overhead (~2s saved)
+    cfg     = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+    goodbyes = {
+        "hi": "अच्छा चलिए, ख्याल रखिए!",
+        "mr": "बरं चला, काळजी घ्या!",
+        "ta": "சரி, கவனமா இருங்க!",
+        "en": "Take care!",
+    }
 
-    # ── Write "processing" sentinel so poll knows a job is active ──
+    # Fetch history (single DynamoDB get, fast)
+    history = get_conversation_history(call_sid) if call_sid else []
+
+    call_system_prompt = build_system_prompt(current_agent, language)
+    _lang_hint = {
+        "hi": "Respond in Hindi (Devanagari script).",
+        "mr": "Respond in Marathi.",
+        "ta": "Respond in Tamil.",
+        "en": "Respond in English.",
+    }
+    from datetime import datetime, timezone, timedelta
+    _IST = timezone(timedelta(hours=5, minutes=30))
+    _now_str = datetime.now(_IST).strftime("%d %B %Y, %I:%M %p IST")
+    _umsg = f"[Date/Time: {_now_str}]\n[{_lang_hint.get(language, _lang_hint['en'])}]\n{speech_text}"
+    _msgs = []
+    for _t in (history or [])[-10:]:
+        if _t.get("query"):
+            _msgs.append({"role": "user", "content": [{"text": _t["query"]}]})
+        if _t.get("answer"):
+            _msgs.append({"role": "assistant", "content": [{"text": _t["answer"]}]})
+    _msgs.append({"role": "user", "content": [{"text": _umsg}]})
+
+    quick_answer = ""
+    try:
+        _stream = bedrock.converse_stream(
+            modelId=BEDROCK_MODEL_ID,
+            system=[{"text": call_system_prompt}],
+            messages=_msgs,
+            inferenceConfig={"maxTokens": 300, "temperature": 0.7, "stopSequences": ["User:", "Human:", "Assistant:"]}
+        )
+        for _ev in _stream.get("stream", []):
+            if "contentBlockDelta" in _ev:
+                quick_answer += _ev["contentBlockDelta"].get("delta", {}).get("text", "")
+        logger.info(f"LLM done call={call_sid}, len={len(quick_answer)}")
+    except Exception as _e:
+        logger.warning(f"LLM failed: {_e}")
+        quick_answer = {"hi": "माफ करें, कुछ समस्या आई। फिर से पूछिए।",
+                        "mr": "क्षमस्व, पुन्हा विचारा.", "ta": "மன்னிக்கவும், மீண்டும் கேளுங்கள்.",
+                        "en": "Sorry, something went wrong. Please ask again."}.get(language, "Please try again.")
+
+    # ── LLM-driven agent switch via [SWITCH:name] tag ─────────────
+    import re as _re
+    _switch_m = _re.search(r'\[SWITCH:(arya|hitesh|vidya)\]', quick_answer, _re.IGNORECASE)
+    if _switch_m:
+        target_agent = _switch_m.group(1).lower()
+        if target_agent != current_agent and target_agent in AGENT_REGISTRY:
+            _old_cfg    = AGENT_REGISTRY.get(current_agent, AGENT_REGISTRY[DEFAULT_AGENT])
+            _old_voice  = _old_cfg["sarvam_speaker"]
+            _old_gender = _old_cfg.get("gender", "female")
+            _new_cfg    = AGENT_REGISTRY[target_agent]
+            _new_voice  = _new_cfg["sarvam_speaker"]
+            _greeting_k = f"greeting_{language}"
+            _switch_greeting = _new_cfg.get(_greeting_k, _new_cfg["greeting_hi"])
+            _xfer_msgs = {
+                "hi": f"ठीक है, अभी जोड़ता हूँ।" if _old_gender == "male" else f"ठीक है, अभी जोड़ती हूँ।",
+                "mr": "ठीक आहे, एक क्षण.",
+                "ta": "சரி, ஒரு நிமிஷம்.",
+                "en": "Sure, one moment.",
+            }
+            _resp = VoiceResponse()
+            tts_say(_resp, _xfer_msgs.get(language, _xfer_msgs["hi"]), language, speaker=_old_voice)
+            _resp.pause(length=1)
+            tts_say(_resp, _switch_greeting, language, speaker=_new_voice)
+            _append_listen_gather(_resp, language, _new_voice, target_agent)
+            return twiml_response(_resp)
+
+    needs_data = ("[FETCH_DATA]" in quick_answer) or ("[WEB_SEARCH]" in quick_answer)
+    clean_answer = quick_answer.replace("[FETCH_DATA]", "").replace("[WEB_SEARCH]", "").strip()
+    needs_web   = "[WEB_SEARCH]" in quick_answer
+    if len(clean_answer) > 500:
+        clean_answer = clean_answer[:500].rsplit(' ', 1)[0] + "..."
+
+    if not needs_data:
+        # ── Fast path: TTS + return TwiML directly (no poll needed) ───
+        audio_urls = _tts_chunks_parallel(clean_answer, language, speaker=voice)
+        threading.Thread(target=lambda: log_query(call_sid, speech_text, clean_answer, language),
+                         daemon=True).start()
+        response = VoiceResponse()
+        for url in audio_urls:
+            response.play(url)
+        if not audio_urls:
+            response.say(clean_answer, voice=cfg["polly_voice"])
+        _append_listen_gather(response, language, voice, current_agent)
+        tts_say(response, goodbyes.get(language, goodbyes["en"]), language, speaker=voice)
+        return twiml_response(response)
+
+    # ── Data path: serve ack, fetch data async, poll for final answer ──
+    job_key   = f"job#{call_sid}"
+    ack_audio = sarvam_tts(clean_answer, language, speaker=voice) or ""
     try:
         calls_table.put_item(Item={
-            "call_id": job_key,
-            "timestamp": 0,
-            "status": "processing",
-            "lang": language,
-            "voice": voice,
-            "ttl": int(time.time()) + 300,  # auto-expire in 5 min
+            "call_id": job_key, "timestamp": 0, "status": "partial",
+            "answer": clean_answer, "audio_url": ack_audio, "lang": language,
+            "voice": voice, "ttl": int(time.time()) + 300,
         })
     except Exception as e:
-        logger.warning(f"Job sentinel write failed (non-fatal): {e}")
+        logger.warning(f"Job partial write failed: {e}")
 
-    # ── Background thread: two-phase LLM → store result in DynamoDB ──
-    def _process_async():
+    _needs_web_captured = needs_web  # capture for async closure
+
+    def _fetch_data_async():
         try:
-            profile_context = ""
-            cross_call_context = ""
-            from_number = ""
-            phone_hash = ""
-
-            def _fetch_profile():
-                """Fetch caller profile and cross-call context."""
-                _prof = ""
-                _cross = ""
-                _from = ""
-                _phash = ""
-                try:
-                    ts = get_call_timestamp(call_sid)
-                    call_item = calls_table.get_item(Key={"call_id": call_sid, "timestamp": ts}).get("Item", {})
-                    _from = call_item.get("from_number", "")
-                    user_id = call_item.get("user_id", "")
-                    if user_id:
-                        user_result = users_table.get_item(Key={"user_id": user_id})
-                        caller = user_result.get("Item")
-                        if caller:
-                            _prof = _build_profile_context(caller)
-                    if _from and _from != "unknown":
-                        _phash = _hash_phone(_from)
-                        phone_prof = _get_phone_profile(_from)
-                        if phone_prof and phone_prof.get("last_topic"):
-                            _cross = phone_prof["last_topic"]
-                except Exception as pe:
-                    logger.warning(f"Profile lookup for call {call_sid}: {pe}")
-                return _prof, _cross, _from, _phash
-
-            def _fetch_history():
-                """Fetch conversation history for this call."""
-                return get_conversation_history(call_sid) if call_sid else []
-
-            # ── Phase 1: Fast LLM (profile + history only, NO RAG/data.gov) ──
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                fut_profile = executor.submit(_fetch_profile)
-                fut_hist    = executor.submit(_fetch_history)
-                profile_context, cross_call_context, from_number, phone_hash = fut_profile.result()
-                history = fut_hist.result()
-
-            call_system_prompt = build_system_prompt(
-                current_agent, language,
-                user_name=None,
-                cross_call_context=cross_call_context
-            )
-
-            # ── Phase 1: Streaming LLM with first-sentence TTS overlap ──
-            _first_tts_future = None
-            _first_sent = None
-            _tts_pool = ThreadPoolExecutor(max_workers=4)
-            try:
-                _lang_map = {
-                    "hi": "LANGUAGE: Hindi ONLY. हिंदी देवनागरी लिपि में जवाब दो। कोई अंग्रेजी/रोमन अक्षर नहीं। सिर्फ proper nouns (PM-Kisan, Ayushman Bharat) अंग्रेजी में रख सकती हो।",
-                    "mr": "LANGUAGE: Marathi ONLY. उत्तर फक्त मराठी लिपीत द्या. हिंदी मिसळू नका. फक्त proper nouns (PM-Kisan, Ayushman Bharat) इंग्रजीत ठेवा.",
-                    "ta": "LANGUAGE: Tamil ONLY. பதிலை முழுவதுமாக தமிழில் கொடுங்கள். ஆங்கிலம் வேண்டாம். proper nouns (PM-Kisan, Ayushman Bharat) மட்டும் ஆங்கிலத்தில்.",
-                    "en": "LANGUAGE: English ONLY. Respond in simple, clear English. No Hindi or other scripts.",
-                }
-                _li = _lang_map.get(language, _lang_map["en"])
-                _ps = f"\n\n{profile_context}\n" if profile_context else ""
-                _umsg = f"[{_li}]\n{_ps}\nRelevant context from our knowledge base (use if helpful, ignore if not relevant):\n\nUser: {speech_text}"
-
-                _msgs = []
-                for _t in (history or [])[-10:]:
-                    if _t.get("query"):
-                        _msgs.append({"role": "user", "content": [{"text": _t["query"]}]})
-                    if _t.get("answer"):
-                        _msgs.append({"role": "assistant", "content": [{"text": _t["answer"]}]})
-                _msgs.append({"role": "user", "content": [{"text": _umsg}]})
-
-                _sys = call_system_prompt or build_system_prompt(DEFAULT_AGENT, language)
-                _stream = bedrock.converse_stream(
-                    modelId=BEDROCK_MODEL_ID,
-                    system=[{"text": _sys}],
-                    messages=_msgs,
-                    inferenceConfig={"maxTokens": 300, "temperature": 0.7}
-                )
-
-                _buf = ""
-                for _ev in _stream.get("stream", []):
-                    if "contentBlockDelta" in _ev:
-                        _buf += _ev["contentBlockDelta"].get("delta", {}).get("text", "")
-                        if _first_sent is None:
-                            _m = re.search(r'[।\.!\?]', _buf)
-                            if _m:
-                                _first_sent = _buf[:_m.end()].strip()
-                                if "[FETCH_DATA]" not in _first_sent:
-                                    _first_tts_future = _tts_pool.submit(
-                                        sarvam_tts, _first_sent, language, voice)
-                                    logger.info(f"Stream overlap: TTS fired at {len(_buf)} chars")
-
-                quick_answer = _buf.strip()
-                if _first_sent is None:
-                    _first_sent = quick_answer
-                logger.info(f"Streamed LLM for call={call_sid}, len={len(quick_answer)}")
-            except Exception as _serr:
-                logger.warning(f"Streaming failed, falling back: {_serr}")
-                quick_answer = ask_llm(speech_text, "", language, history,
-                                       profile_context=profile_context,
-                                       system_prompt=call_system_prompt)
-                _first_sent = None
-
-            needs_data = "[FETCH_DATA]" in quick_answer
-            clean_answer = quick_answer.replace("[FETCH_DATA]", "").strip()
-
-            if not needs_data:
-                # ── Fast path: parallel TTS (first ‖ remainder) ──
-                if _first_tts_future:
-                    _fs_clean = _first_sent.replace("[FETCH_DATA]", "").strip()
-                    _idx = clean_answer.find(_fs_clean)
-                    remainder = clean_answer[_idx + len(_fs_clean):].strip() if _idx >= 0 else ""
-                    # Fire remainder TTS NOW, parallel with first already in flight
-                    _rest_future = _tts_pool.submit(sarvam_tts, remainder, language, voice) if remainder else None
-                    first_audio = _first_tts_future.result(timeout=10) or ""
-                    rest_audio = _rest_future.result(timeout=10) or "" if _rest_future else ""
-                else:
-                    _split = re.split(r'(?<=[।\.!\?])', clean_answer, maxsplit=1)
-                    _fs_clean = _split[0].strip()
-                    remainder = _split[1].strip() if len(_split) > 1 else ""
-                    # Parallel both TTS calls
-                    _f1 = _tts_pool.submit(sarvam_tts, _fs_clean, language, voice)
-                    _f2 = _tts_pool.submit(sarvam_tts, remainder, language, voice) if remainder else None
-                    first_audio = _f1.result(timeout=10) or ""
-                    rest_audio = _f2.result(timeout=10) or "" if _f2 else ""
-                _tts_pool.shutdown(wait=False)
-
-                calls_table.put_item(Item={
-                    "call_id": job_key,
-                    "timestamp": 0,
-                    "status": "done",
-                    "answer": clean_answer,
-                    "audio_url": first_audio,
-                    "rest_audio_url": rest_audio,
-                    "lang": language,
-                    "ttl": int(time.time()) + 300,
-                })
-                log_query(call_sid, speech_text, clean_answer, language)
-                logger.info(f"Fast path done for call={call_sid}")
+            def _fetch_rag():
+                if not should_use_rag(speech_text): return ""
+                return retrieve_context(get_embedding(speech_text), language)
+            def _fetch_live():
+                return _fetch_data_gov(speech_text) if DATA_GOV_API_KEY else ""
+            def _fetch_web():
+                return _fetch_web_search(speech_text) if _needs_web_captured else ""
+            # Submit all three in parallel — don't call .result() inline
+            with ThreadPoolExecutor(max_workers=3) as ex:
+                f_rag  = ex.submit(_fetch_rag)
+                f_live = ex.submit(_fetch_live)
+                f_web  = ex.submit(_fetch_web)
+                rag_ctx  = f_rag.result()
+                live_ctx = f_live.result()
+                web_ctx  = f_web.result()
+            context = rag_ctx
+            if live_ctx:
+                context = f"{context}\n\n--- Live Mandi Data ---\n{live_ctx}"
+            if web_ctx:
+                context = f"{context}\n\n--- Web Search Results ---\n{web_ctx}"
+            phase2 = call_system_prompt.split("DATA ACCESS:")[0].strip()
+            if context.strip():
+                phase2 += "\n\nIMPORTANT: Use the data below to answer directly with real numbers."
+            elif _needs_web_captured:
+                phase2 += ("\n\nNOTE: Web search returned no live results right now. "
+                           "Answer using your training knowledge — give approximate figures if needed "
+                           "and briefly note they may not be the latest. Be helpful and specific. "
+                           "Do NOT say you cannot access the internet or ask them to check a website.")
             else:
-                # ── Data needed — serve acknowledgment, then fetch ──
-                if _first_tts_future:
-                    ack_audio = _first_tts_future.result(timeout=10) or ""
-                else:
-                    ack_audio = sarvam_tts(clean_answer, language, speaker=voice) or ""
-                _tts_pool.shutdown(wait=False)
-                calls_table.put_item(Item={
-                    "call_id": job_key,
-                    "timestamp": 0,
-                    "status": "partial",
-                    "answer": clean_answer,
-                    "audio_url": ack_audio,
-                    "lang": language,
-                    "ttl": int(time.time()) + 300,
-                })
-                logger.info(f"Partial (ack) served for call={call_sid}, fetching data...")
-
-                # ── Phase 2: Fetch RAG + data.gov in parallel ──
-                def _fetch_rag_context():
-                    use_rag = should_use_rag(speech_text)
-                    if not use_rag:
-                        return ""
-                    embedding = get_embedding(speech_text)
-                    return retrieve_context(embedding, language)
-
-                def _fetch_live_data():
-                    if not DATA_GOV_API_KEY:
-                        return ""
-                    return _fetch_data_gov(speech_text)
-
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    fut_rag  = executor.submit(_fetch_rag_context)
-                    fut_live = executor.submit(_fetch_live_data)
-                    rag_context = fut_rag.result()
-                    live_data   = fut_live.result()
-
-                context = rag_context
-                if live_data:
-                    context = f"{context}\n\n--- Live Government Data (data.gov.in) ---\n{live_data}"
-
-                # Phase 2 system prompt: tell LLM to use the fetched data directly
-                phase2_prompt = call_system_prompt.split("DATA ACCESS:")[0].strip()
-                if context.strip():
-                    phase2_prompt += "\n\nIMPORTANT: The data below has already been fetched for you. Answer the user's question directly using actual numbers and details from the data. Do NOT say you are checking or looking up anything."
-                else:
-                    phase2_prompt += "\n\nIMPORTANT: No data was found. Tell the user honestly that data is not available right now."
-
-                # Phase 2 LLM: now with full context
-                data_answer = ask_llm(speech_text, context, language, history,
-                                      profile_context=profile_context,
-                                      system_prompt=phase2_prompt)
-                # Strip any accidental [FETCH_DATA] from Phase 2
-                data_answer = data_answer.replace("[FETCH_DATA]", "").strip()
-
-                import re as _re
-                sentence_split = _re.split(r'(?<=[।\.!\?])', data_answer, maxsplit=1)
-                first_sentence = sentence_split[0].strip()
-                remainder = sentence_split[1].strip() if len(sentence_split) > 1 else ""
-
-                first_audio = sarvam_tts(first_sentence, language, speaker=voice) or ""
-                rest_audio = ""
-                if remainder:
-                    rest_audio = sarvam_tts(remainder, language, speaker=voice) or ""
-
-                calls_table.put_item(Item={
-                    "call_id": job_key,
-                    "timestamp": 0,
-                    "status": "done",
-                    "answer": data_answer,
-                    "audio_url": first_audio,
-                    "rest_audio_url": rest_audio,
-                    "lang": language,
-                    "ttl": int(time.time()) + 300,
-                })
-                log_query(call_sid, speech_text, data_answer, language)
-                logger.info(f"Data path done for call={call_sid}")
-
-            # Update cross-call memory (fire-and-forget)
-            if phone_hash:
-                try:
-                    summarize_and_store_call(phone_hash, history, language, current_agent)
-                except Exception:
-                    pass
+                phase2 += ("\n\nNOTE: No specific data found in our database. "
+                           "Answer from your general training knowledge. Be helpful and specific. "
+                           "Do not say 'I don't have data' — just answer what you know.")
+            data_answer = ask_llm(speech_text, context, language, history, system_prompt=phase2)
+            data_answer = data_answer.replace("[FETCH_DATA]", "").replace("[WEB_SEARCH]", "").strip()
+            # Save TEXT only — TTS is generated synchronously in the poll handler (more reliable in Lambda)
+            calls_table.put_item(Item={
+                "call_id": job_key, "timestamp": 0, "status": "done",
+                "answer": data_answer,
+                "audio_urls": [],
+                "audio_url": "",
+                "lang": language,
+                "voice": voice,
+                "ttl": int(time.time()) + 300,
+            })
+            log_query(call_sid, speech_text, data_answer, language)
         except Exception as e:
-            logger.error(f"Async RAG error for call={call_sid}: {e}")
+            logger.error(f"Data fetch failed call={call_sid}: {e}")
             try:
-                calls_table.put_item(Item={
-                    "call_id": job_key,
-                    "timestamp": 0,
-                    "status": "error",
-                    "lang": language,
-                    "ttl": int(time.time()) + 300,
-                })
+                calls_table.put_item(Item={"call_id": job_key, "timestamp": 0,
+                                          "status": "error", "ttl": int(time.time()) + 300})
             except Exception:
                 pass
 
-    threading.Thread(target=_process_async, daemon=True).start()
-
-    # ── Redirect to poll immediately (streaming LLM + TTS overlap handles latency) ──
-    cfg      = LANG_CONFIG.get(language, LANG_CONFIG["en"])
-    poll_url = f"{BASE_URL}/voice/poll?lang={language}&voice={voice}&agent={current_agent}" if BASE_URL else f"/voice/poll?lang={language}&voice={voice}&agent={current_agent}"
-
+    threading.Thread(target=_fetch_data_async, daemon=True).start()
+    poll_url = (f"{BASE_URL}/voice/poll?lang={language}&voice={voice}&agent={current_agent}"
+                if BASE_URL else f"/voice/poll?lang={language}&voice={voice}&agent={current_agent}")
     response = VoiceResponse()
     response.redirect(poll_url, method="POST")
     return twiml_response(response)
@@ -2230,7 +2343,7 @@ def handle_poll(params):
     gather_url = f"{BASE_URL}/voice/gather?lang={language}&voice={voice}&agent={current_agent}" if BASE_URL else f"/voice/gather?lang={language}&voice={voice}&agent={current_agent}"
     response   = VoiceResponse()
 
-    # Poll DynamoDB every ~0.75 s for up to 10 s (faster polling = lower latency)
+    # Poll DynamoDB every ~0.4s for up to 10s (fast polling = lower latency)
     # If partial was already played, only wait for done/error
     acceptable = ("done", "error") if partial_played else ("done", "error", "partial")
     result   = None
@@ -2243,7 +2356,7 @@ def handle_poll(params):
                 break
         except Exception as e:
             logger.warning(f"Poll DynamoDB error: {e}")
-        time.sleep(0.75)
+        time.sleep(0.4)
 
     # ── Still processing after 10 s? ───────────────────────────────
     if result is None:
@@ -2264,13 +2377,8 @@ def handle_poll(params):
             response.redirect(next_poll, method="POST")
         else:
             # Give up after ~20 s total — let user ask again
-            gather = Gather(
-                input="speech", action=gather_url, method="POST",
-                language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-            )
-            gather.say(error_msgs.get(language, error_msgs["en"]), voice=cfg["polly_voice"])
-            response.append(gather)
-            response.say(goodbyes.get(language, goodbyes["en"]), voice=cfg["polly_voice"])
+            tts_say(response, error_msgs.get(language, error_msgs["en"]), language, speaker=voice)
+            _append_listen_gather(response, language, voice, current_agent)
         return twiml_response(response)
 
     # ── Error result ────────────────────────────────────────────────
@@ -2280,13 +2388,8 @@ def handle_poll(params):
             target=lambda: calls_table.delete_item(Key={"call_id": job_key, "timestamp": 0}),
             daemon=True,
         ).start()
-        gather = Gather(
-            input="speech", action=gather_url, method="POST",
-            language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-        )
-        gather.say(error_msgs.get(language, error_msgs["en"]), voice=cfg["polly_voice"])
-        response.append(gather)
-        response.say(goodbyes.get(language, goodbyes["en"]), voice=cfg["polly_voice"])
+        tts_say(response, error_msgs.get(language, error_msgs["en"]), language, speaker=voice)
+        _append_listen_gather(response, language, voice, current_agent)
         return twiml_response(response)
 
     # ── Partial result (Phase 1 ack — play ONCE, then poll for done) ──
@@ -2297,7 +2400,7 @@ def handle_poll(params):
         else:
             ack_text = result.get("answer", "")
             if ack_text:
-                response.say(ack_text, voice=cfg["polly_voice"])
+                tts_say(response, ack_text, language, speaker=voice)
         # Redirect to poll again but with pp=1 so we only wait for done/error
         next_poll = (
             f"{BASE_URL}/voice/poll?lang={language}&attempt=0&voice={voice}&agent={current_agent}&pp=1"
@@ -2319,34 +2422,19 @@ def handle_poll(params):
         answer = answer[:500].rsplit(' ', 1)[0] + "..."
     # Use the voice stored in the job record (ensures consistency even on retry hops)
     stored_voice = result.get("voice", voice)
-    audio_url = result.get("audio_url", "")
     follow_up = follow_ups.get(language, follow_ups["en"])
     goodbye   = goodbyes.get(language, goodbyes["en"])
 
-    rest_audio_url = result.get("rest_audio_url", "")
-
-    gather = Gather(
-        input="speech", action=gather_url, method="POST",
-        language=cfg["twilio_speech_lang"], speech_timeout="auto", timeout=15,
-    )
-    if audio_url:
-        gather.play(audio_url)
-        if rest_audio_url:
-            gather.play(rest_audio_url)
-        # Use Polly <Say> for follow-up — zero latency (no API call)
-        gather.say(follow_up, voice=cfg["polly_voice"])
-    else:
-        # Sarvam TTS unavailable — retry once, then fall back to Polly
-        retry_url = sarvam_tts(answer, language, speaker=stored_voice)
-        if retry_url:
-            gather.play(retry_url)
-            gather.say(follow_up, voice=cfg["polly_voice"])
-        else:
-            gather.say(answer, voice=cfg["polly_voice"])
-            gather.say(follow_up, voice=cfg["polly_voice"])
-    response.append(gather)
-    # Use Polly <Say> for goodbye — zero latency (no API call)
-    response.say(goodbye, voice=cfg["polly_voice"])
+    # Always generate TTS synchronously here — more reliable than relying on background-thread URLs
+    if answer:
+        audio_urls = _tts_chunks_parallel(answer, language, stored_voice)
+        for url in audio_urls:
+            response.play(url)
+        if not audio_urls:
+            tts_say(response, answer, language, speaker=stored_voice)
+    _append_listen_gather(response, language, stored_voice, current_agent)
+    # Goodbye: also use TTS for naturalness
+    tts_say(response, goodbye, language, speaker=stored_voice)
     return twiml_response(response)
 
 
@@ -2388,6 +2476,127 @@ def _lookup_user_by_phone(phone: str) -> dict | None:
     except Exception as e:
         logger.warning(f"Phone lookup failed: {e}")
         return None
+
+
+SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
+
+
+def _fetch_web_search(query: str) -> str:
+    """Search the internet. Tries Tavily → Serper → DuckDuckGo HTML → DDG Instant API."""
+    import requests as _req
+
+    # 1. Tavily (best — sign up free at tavily.com, set TAVILY_API_KEY env var)
+    if TAVILY_API_KEY:
+        try:
+            r = _req.post(
+                "https://api.tavily.com/search",
+                json={"api_key": TAVILY_API_KEY, "query": query, "max_results": 3, "search_depth": "basic"},
+                timeout=5,
+            )
+            results = r.json().get("results", [])
+            if results:
+                return "\n".join(f"{x['title']}: {x.get('content','')[:300]}" for x in results[:3])
+        except Exception as e:
+            logger.warning(f"Tavily search failed: {e}")
+
+    # 2. Serper (Google Search — sign up free at serper.dev, 2500 req/month, set SERPER_API_KEY)
+    if SERPER_API_KEY:
+        try:
+            r = _req.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                json={"q": query, "num": 4, "gl": "in", "hl": "en"},
+                timeout=5,
+            )
+            data = r.json()
+            parts = []
+            if data.get("answerBox", {}).get("answer"):
+                parts.append(data["answerBox"]["answer"])
+            for x in data.get("organic", [])[:3]:
+                parts.append(f"{x['title']}: {x.get('snippet','')}")
+            if parts:
+                return "\n".join(parts)
+        except Exception as e:
+            logger.warning(f"Serper search failed: {e}")
+
+    # 3. DuckDuckGo HTML scraper (no key needed — uses stdlib html.parser)
+    try:
+        result = _ddg_html_search(query)
+        if result:
+            return result
+    except Exception as e:
+        logger.warning(f"DDG HTML search failed: {e}")
+
+    # 4. DuckDuckGo Instant Answer + RelatedTopics (factual fallback)
+    try:
+        r = _req.get(
+            "https://api.duckduckgo.com/",
+            params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+            timeout=3,
+        )
+        data = r.json()
+        parts = []
+        if data.get("Answer"):
+            parts.append(data["Answer"])
+        if data.get("AbstractText"):
+            parts.append(data["AbstractText"])
+        for t in (data.get("RelatedTopics") or [])[:3]:
+            if isinstance(t, dict) and t.get("Text"):
+                parts.append(t["Text"])
+        result = "\n".join(parts).strip()
+        return result[:600] if result else ""
+    except Exception as e:
+        logger.warning(f"DDG API search failed: {e}")
+
+    return ""
+
+
+def _ddg_html_search(query: str, max_results: int = 4) -> str:
+    """Scrape DuckDuckGo HTML results using Python stdlib — no API key needed."""
+    from html.parser import HTMLParser
+    import requests as _req
+
+    class _P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._mode = None
+            self._buf = []
+            self.titles: list = []
+            self.snippets: list = []
+
+        def handle_starttag(self, tag, attrs):
+            cls = dict(attrs).get("class", "")
+            if tag == "a" and "result__a" in cls.split():
+                self._mode = "t"; self._buf = []
+            elif tag == "a" and "result__snippet" in cls.split():
+                self._mode = "s"; self._buf = []
+
+        def handle_endtag(self, tag):
+            if tag == "a" and self._mode:
+                text = "".join(self._buf).strip()
+                if text:
+                    (self.titles if self._mode == "t" else self.snippets).append(text)
+                self._mode = None; self._buf = []
+
+        def handle_data(self, data):
+            if self._mode:
+                self._buf.append(data)
+
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    r = _req.get(
+        "https://html.duckduckgo.com/html/",
+        params={"q": f"{query} India", "kl": "in-en"},
+        headers=hdrs,
+        timeout=5,
+    )
+    p = _P()
+    p.feed(r.text)
+    results = [f"{t}: {s}" for t, s in zip(p.titles[:max_results], p.snippets[:max_results]) if t and s]
+    return "\n".join(results)
 
 
 def _fetch_data_gov(query: str) -> str:
@@ -2626,7 +2835,7 @@ def ask_llm(query: str, context: str, language: str, history: list = None, profi
 Relevant context from our knowledge base (use if helpful, ignore if not relevant):
 {context}
 
-User: {query}"""
+{query}"""
 
     # Resolve system prompt — fall back to default agent if not provided
     resolved_prompt = system_prompt or build_system_prompt(DEFAULT_AGENT, language)
@@ -2648,8 +2857,10 @@ def _ask_openai(user_msg: str, history: list, system_prompt: str = "") -> str:
 
     # Add conversation history (last 10 turns max to stay within context)
     for turn in (history or [])[-10:]:
-        messages.append({"role": "user", "content": turn.get("query", "")})
-        messages.append({"role": "assistant", "content": turn.get("answer", "")})
+        if turn.get("query"):
+            messages.append({"role": "user", "content": turn["query"]})
+        if turn.get("answer"):
+            messages.append({"role": "assistant", "content": turn["answer"]})
 
     # Current user message
     messages.append({"role": "user", "content": user_msg})
@@ -2747,26 +2958,83 @@ Reply with only the summary sentence, nothing else."""
         logger.warning(f"summarize_and_store_call failed: {e}")
 
 
+# ── TTS sentence chunking ─────────────────────────────────────────────────────
+def _split_for_tts(text: str, max_len: int = 220) -> list:
+    """Split text at sentence boundaries ONLY when it exceeds max_len chars.
+    Short text is returned as-is (no extra TTS round-trips).
+    Splits on: । (Devanagari danda), ? ! .  followed by whitespace.
+    """
+    if len(text) <= max_len:
+        return [text]
+    import re
+    sentences = re.split(r'(?<=[।?!.])\s+', text)
+    chunks, current = [], ""
+    for s in sentences:
+        if not current:
+            current = s
+        elif len(current) + 1 + len(s) <= max_len:
+            current += " " + s
+        else:
+            if current.strip():
+                chunks.append(current.strip())
+            current = s
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks if chunks else [text]
+
+
+def _tts_chunks_parallel(text: str, language: str, speaker: str) -> list:
+    """Generate TTS for text, chunking long responses at sentence boundaries.
+    Chunks are synthesised in parallel → no extra latency vs a single call.
+    Returns list of presigned audio URLs (empty list on total failure).
+    """
+    chunks = _split_for_tts(text)
+    if len(chunks) == 1:
+        url = sarvam_tts(text, language, speaker=speaker)
+        return [url] if url else []
+    with ThreadPoolExecutor(max_workers=min(len(chunks), 4)) as ex:
+        urls = list(ex.map(lambda c: sarvam_tts(c, language, speaker=speaker), chunks))
+    return [u for u in urls if u]
+
+
 # ── Helpers ──────────────────────────────────────────────────
-def ask_again(language: str):
+def _append_listen_gather(response, language: str, voice: str = "", agent: str = ""):
+    """Append a <Gather input=speech> to listen for speech. Replaces <Record> — saves ~3s per turn
+    by sending the transcript inline instead of recording→download→STT."""
+    cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
+    _voice = voice or cfg["sarvam_speaker"]
+    _agent = agent or DEFAULT_AGENT
+    gather_url = (
+        f"{BASE_URL}/voice/gather?lang={language}&voice={_voice}&agent={_agent}"
+        if BASE_URL else
+        f"/voice/gather?lang={language}&voice={_voice}&agent={_agent}"
+    )
+    # Always use hi-IN for Twilio STT — it handles Hindi + Hinglish + language-switch commands.
+    # Using ta-IN would prevent the user from switching back to Hindi (Twilio can't understand Hindi in ta-IN mode).
+    _stt_lang = "hi-IN" if language in ("hi", "mr") else ("en-IN" if language == "en" else cfg["twilio_speech_lang"])
+    _all_hints = cfg.get("hints", "") + ", hindi, english, marathi, tamil, bhasha, language, switch, arya, hitesh, vidya"
+    g = Gather(
+        input="speech",
+        action=gather_url,
+        method="POST",
+        language=_stt_lang,
+        speech_timeout="2",
+        timeout=10,
+        hints=_all_hints,
+    )
+    response.append(g)
+
+
+def ask_again(language: str, voice: str = "", agent: str = ""):
     msgs = {
         "hi": "अरे, सुनाई नहीं दिया। एक बार फिर से बोलिए?",
         "mr": "ऐकू आलं नाही. पुन्हा सांगा ना?",
         "ta": "கேட்கவில்லை. மறுபடியும் சொல்லுங்க?",
         "en": "Sorry, I didn't catch that. Could you say it again?",
     }
-    cfg = LANG_CONFIG.get(language, LANG_CONFIG["en"])
     response = VoiceResponse()
-    gather = Gather(
-        input="speech",
-        action=f"{BASE_URL}/voice/gather?lang={language}" if BASE_URL else f"/voice/gather?lang={language}",
-        method="POST",
-        language=cfg["twilio_speech_lang"],
-        speech_timeout="auto",
-        timeout=10
-    )
-    tts_say(gather, msgs.get(language, msgs["en"]), language)
-    response.append(gather)
+    tts_say(response, msgs.get(language, msgs["en"]), language)
+    _append_listen_gather(response, language, voice, agent)
     return twiml_response(response)
 
 

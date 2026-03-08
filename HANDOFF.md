@@ -23,7 +23,7 @@ Voice-first AI platform for rural India. Users call a phone number (+1 978 830 9
 | API Gateway | REST — `https://e1oy2y9gjj.execute-api.us-east-1.amazonaws.com/prod` |
 | Database | AWS DynamoDB (3 tables + 1 new users table) |
 | Storage | AWS S3 bucket `vaaniseva-documents` |
-| LLM | OpenAI GPT-4o-mini (primary) → AWS Bedrock Nova Micro (fallback) |
+| LLM | Amazon Bedrock Nova Lite (primary) → OpenAI GPT-4o-mini (fallback if `OPENAI_API_KEY` set) |
 | STT | Twilio native speech recognition (phone) |
 | TTS | Sarvam AI bulbul:v2 → Amazon Polly fallback |
 | Embeddings | AWS Bedrock Titan Embed v2 |
@@ -246,7 +246,7 @@ VITE_TWILIO_PHONE = +19788309619
 - `retrieve_context(embedding, language)` → cosine similarity scan of `vaaniseva-vectors` table
 - Returns top-3 chunks, language-prioritized (native lang text preferred)
 - Optional: `_fetch_data_gov(query)` augments with live data.gov.in scheme data
-- `ask_llm(query, context, language, history, profile_context)` → OpenAI GPT-4o-mini
+- `ask_llm(query, context, language, history, profile_context)` → Amazon Bedrock Nova Lite
 
 ---
 

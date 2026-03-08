@@ -3,6 +3,10 @@
 *.csv
 *credentials*
 
+# One-off experiment / test scripts with API keys (keep local)
+scripts/test_cartesia.py
+scripts/test_elevenlabs2.py
+
 # Python
 __pycache__/
 *.py[cod]

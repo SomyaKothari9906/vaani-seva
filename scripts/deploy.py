@@ -10,7 +10,7 @@ import zipfile
 import shutil
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # always prefer .env over existing shell env vars
 
 AWS_REGION      = os.environ["AWS_REGION"]
 ACCOUNT_ID      = boto3.client("sts", region_name=AWS_REGION).get_caller_identity()["Account"]
@@ -114,8 +114,10 @@ def deploy_lambda(zip_path, role_arn):
         "SARVAM_API_KEY":            os.environ.get("SARVAM_API_KEY", ""),
         "OPENAI_API_KEY":            os.environ.get("OPENAI_API_KEY", ""),
         "LLM_PROVIDER":             os.environ.get("LLM_PROVIDER", "bedrock"),
-        "JWT_SECRET":                os.environ.get("JWT_SECRET", "vaaniseva-hackathon-secret-key-2024"),
+        "JWT_SECRET":                os.environ.get("JWT_SECRET", ""),
         "DATA_GOV_API_KEY":          os.environ.get("DATA_GOV_API_KEY", ""),
+        "CARTESIA_API_KEY":          os.environ.get("CARTESIA_API_KEY", ""),
+        "TTS_PROVIDER":              os.environ.get("TTS_PROVIDER", "cartesia"),
         "LOG_LEVEL":                "INFO",
     }
 
@@ -135,7 +137,7 @@ def deploy_lambda(zip_path, role_arn):
             Handler="handler.lambda_handler",
             Code={"S3Bucket": bucket, "S3Key": s3_key},
             Timeout=30,
-            MemorySize=512,
+            MemorySize=1024,
             Environment={"Variables": env_vars}
         )
         arn = fn["FunctionArn"]
@@ -154,7 +156,7 @@ def deploy_lambda(zip_path, role_arn):
             FunctionName=LAMBDA_NAME,
             Environment={"Variables": env_vars},
             Timeout=30,
-            MemorySize=512
+            MemorySize=1024
         )
         arn = lambda_client.get_function(FunctionName=LAMBDA_NAME)["Configuration"]["FunctionArn"]
         print(f"  ✓ Lambda updated: {arn}")
@@ -262,6 +264,7 @@ def create_api_gateway(lambda_arn):
     language_id      = get_or_create_resource(voice_id, "language")
     lang_detect_id   = get_or_create_resource(voice_id, "language-detect")
     gather_id        = get_or_create_resource(voice_id, "gather")
+    stt_id           = get_or_create_resource(voice_id, "stt")
     token_id         = get_or_create_resource(voice_id, "token")
     poll_id          = get_or_create_resource(voice_id, "poll")
 
@@ -269,6 +272,7 @@ def create_api_gateway(lambda_arn):
     add_post_method(language_id,    "/voice/language")
     add_post_method(lang_detect_id, "/voice/language-detect")
     add_post_method(gather_id,   "/voice/gather")
+    add_post_method(stt_id,      "/voice/stt")
     add_get_method(token_id,     "/voice/token")
     add_options_method(token_id, "/voice/token")
     add_post_method(poll_id,     "/voice/poll")

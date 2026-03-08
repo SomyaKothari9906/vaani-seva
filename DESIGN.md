@@ -4,6 +4,11 @@
 **Last Updated:** February 15, 2026  
 **Project:** AI for Bharat Hackathon 2026 - Problem Statement 3
 
+> **Note (March 2026):** This is the original technical design specification written at project inception.
+> The deployed prototype differs in a few service choices: STT uses **Twilio Native Gather** (not Deepgram),
+> TTS uses **Sarvam AI bulbul:v2** (not Bhashini), and the LLM is **Amazon Bedrock Nova Lite** (not Claude).
+> See `HANDOFF.md` for the actual running architecture.
+
 ---
 
 ## Table of Contents
@@ -84,8 +89,8 @@ VaaniSeva is a voice-first AI platform that provides multilingual access to crit
 ┌─────────────────────────────────────────────────────────────────┐
 │                   AI/ML LAYER                                    │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │  Deepgram    │  │   Claude AI  │  │   Bhashini   │          │
-│  │     STT      │→ │  Reasoning   │→ │     TTS      │          │
+│  │  Twilio       │  │  AWS Bedrock  │  │  Sarvam AI   │          │
+│  │  Gather STT  │→ │  Nova Lite    │→ │  bulbul:v2   │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
 │                           ↓                                      │
 │                  ┌──────────────┐                                │

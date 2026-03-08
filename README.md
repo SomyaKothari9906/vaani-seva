@@ -83,7 +83,7 @@ VaaniSeva provides a simple voice-based interface accessible via basic feature p
 - Amazon Polly (text-to-speech, fallback)
 
 **Intelligence Layer:**
-- Claude AI (conversation and reasoning)
+- Amazon Bedrock Nova Lite (primary LLM — conversation and reasoning)
 - Knowledge base integration
 - Context management
 - Multi-turn dialog handling
@@ -115,8 +115,8 @@ VaaniSeva provides a simple voice-based interface accessible via basic feature p
 - Audio processing and normalization
 
 ### AI & Intelligence
-- Amazon Bedrock (LLM via Claude / configurable)
-- Sarvam AI (Hindi TTS)
+- Amazon Bedrock (LLM — Nova Lite primary, configurable)
+- Sarvam AI (Hindi/Indian-language TTS)
 - AWS Lambda (serverless)
 - Custom knowledge retrieval (RAG)
 

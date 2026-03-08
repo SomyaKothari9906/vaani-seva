@@ -1,6 +1,12 @@
 # VaaniSeva - Complete Product Requirements Document (PRD)
 ## AI for Bharat Hackathon - Final Submission
 
+> **Implementation Note (March 2026):** This PRD was written during the initial 4-day sprint.
+> LLM references to "Claude 3.5 Sonnet" reflect the initial design; the deployed prototype uses
+> **Amazon Bedrock Nova Lite** which provides comparable quality at lower cost and lower latency
+> for the Indian use-case. TTS uses **Sarvam AI bulbul:v2** (not Bhashini — API access was not
+> available during the hackathon window). See `HANDOFF.md` for the live stack.
+
 **Document Version:** 2.0 (Final)  
 **Team:** Prayas  
 **Team Leader:** Kush Yadav  
