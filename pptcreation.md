@@ -200,25 +200,6 @@ VaaniSeva has verified information on:
 
 ---
 
-# Built in 4 Days
-
-**February 15, 2026 — 11:58 PM:**
-Submitted to AI for Bharat Hackathon. 90 minutes of work. A vision.
-
-**February 25, 2026:**
-Selected for Prototype Development Phase.
-
-**March 4, 2026:**
-Working prototype. Real phone number. Real AI. Real calls.
-
-The phone number +1 978 830 9619 is live right now.
-Call it. Ask anything in Hindi.
-It will answer in 4 seconds.
-
-That's not a demo. That's a product.
-
----
-
 # The Road Ahead
 
 **Phase 1 (Now):** Hindi, Marathi, Tamil, English — 4 languages, core domains working
@@ -245,6 +226,8 @@ They'll come through their voice.
 VaaniSeva is ready for them.
 
 **Dial +1 978 830 9619 — right now, live, in Hindi.**
+
+Don't have international call balance? Visit **vaaniseva.me** — enter your number and we'll call you back. Free, instant, no app needed.
 
 ---
 
@@ -411,23 +394,7 @@ Because one wrong helpline number to someone in a mental health crisis is not ac
 
 ---
 
-**[02:50 – 03:20 — THE BUILD STORY]**
-*[Host, relaxed, slightly more personal]*
-
-**HOST:**
-"We submitted this to AI for Bharat in ninety minutes.
-
-We had two hours. We had a phone, an AWS account, and an idea.
-
-We got selected. We had four days to build a working prototype.
-
-The phone number we gave you at the start of this video? It's been live throughout this entire recording. Every call you heard was real AI, real infrastructure, real answers.
-
-That's what four days of focused building with the right tools looks like."
-
----
-
-**[03:20 – 03:45 — IMPACT & CLOSE]**
+**[02:50 – 03:20 — IMPACT & CLOSE]**
 *[Cut to final slide / brand card]*
 
 **HOST (voiceover):**
@@ -442,9 +409,10 @@ It just picks up.
 Team Prayas. VaaniSeva. AI for Bharat 2026."
 
 *[Show phone number LARGE on screen: +1 978 830 9619]*
+*[Below number, show: "No international balance? vaaniseva.me → Call Me Back — we'll call you"]*
 
 **HOST (to camera, directly):**
-"Call it. It'll answer."
+"Call it. Or visit vaaniseva.me and we'll call you. It'll answer."
 
 *[Fade out.]*
 
@@ -522,6 +490,9 @@ A: Trial phase on Twilio. An Indian toll-free number requires a business registr
 
 **Q: What model are you using?**
 A: Amazon Bedrock Nova Lite as primary — cost-effective, low latency, configurable. OpenAI GPT-4o-mini as a configured fallback.
+
+**Q: Not everyone has international call balance — how can they try it?**
+A: Visit **vaaniseva.me** and use the "Call Me Back" feature — enter your Indian number and our system calls you. Completely free on the user's end. The call originates from our Twilio number so there's no international charge to the user.
 
 **Q: How did you get 4-second latency?**
 A: We identified the bottleneck was 4 sequential Sarvam TTS calls at ~2s each. Fixed with: parallel TTS execution via ThreadPoolExecutor, Bedrock converse_stream() instead of converse(), in-memory audio caching for static phrases, and Polly `<Say>` for non-critical filler text. Full write-up in the repo memory notes.
