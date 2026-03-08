@@ -252,46 +252,35 @@ Don't have international call balance? Visit **vaaniseva.me** — enter your num
 ## SlidePilot / nanobanana Prompt
 
 ```
-You are redesigning a hackathon presentation for VaaniSeva — a live AI voice assistant for rural India that works via basic phone call, no internet, no smartphone.
+Redesign this presentation for VaaniSeva — a live AI voice assistant for rural India. Works on any basic phone call. No smartphone. No internet. No English.
 
-VIBE & EMOTION:
-This is not a startup pitch deck. This is a story about 440 million people being left behind — and one team that did something about it in 4 days. The emotion should feel like urgency, human warmth, and quiet confidence. NOT corporate. NOT Silicon Valley. Think India's soul meets cutting-edge technology.
+KEEP ALL TEXT EXACTLY AS-IS. Do not remove or reword anything.
 
-COLOR DIRECTION:
-Primary: Deep amber/saffron (#D4860B, #F0A832) — warmth, India, hope
-Background: Near-black (#0a0a0a to #1a1a1a) — gravitas, cinematic
-Accent: Warm white (rgba white at 75-80% opacity) — readable, clean
-Avoid: Blues, greens, pastels — this is not a health or finance app aesthetic
+GENERATE AI IMAGES for every slide — do not leave slides text-only. Use cinematic, painterly illustration style. Indian rural realism. Warm and human.
 
-TYPOGRAPHY:
-Headlines: Bold, large, commanding — left-aligned on dark slides
-Subtext: Lighter weight, warm white — breathing room between ideas
-Hindi/Devanagari text: Use Noto Sans Devanagari where shown — it must be readable and beautiful, not an afterthought
+Slide-by-slide image direction:
+- Cover: Full-bleed image — Indian village morning, golden light, woman on a basic phone. Overlay dark gradient left-side for text.
+- Problem slide: Crowded digital world with one silhouette standing apart, holding a keypad phone — excluded, but dignified.
+- Who We're Building For: Four persona portraits — a Vidarbha farmer at dusk, a Jharkhand mother indoors, a Surat migrant worker on street, an elderly Tamil Nadu man sitting alone.
+- How It Works: Clean icon-flow diagram image — basic phone → sound wave → AI brain → speaker. Warm amber on dark background.
+- AI Agents slide: Three illustrated avatar cards — Arya (warm, saree, gold tones), Hitesh (practical, field background, earthy), Vidya (gentle, soft light, health context).
+- Knowledge Base slide: Illustrated collage — PM-Kisan form, Ayushman Bharat card, mandi board, legal document. Warm illustrated style.
+- Technology Stack slide: Visual pipeline diagram — Twilio → AWS Lambda → Bedrock Nova Lite → Sarvam AI → caller's ear. Glowing nodes on dark bg.
+- Why It's Hard slide: 4 illustrated quadrants, each showing the challenge (2G signal bars, Indian-language text, a verified stamp, a ₹500 Nokia).
+- Road Ahead slide: Timeline ribbon with milestone illustrations. Hopeful, forward-moving.
+- Final CTA slide: Full-bleed dramatic image — phone being held up to light, gold tones. Phone number +1 978 830 9619 displayed huge.
 
-SLIDE DESIGN PRINCIPLES:
-- Each slide should tell ONE idea. Not 5 bullet points. One powerful statement + 2-3 supporting details max.
-- The "Problem" slide: show the emptiness — a silhouette or abstract shape that reads as "left out"
-- The "How it Works" slide: show a simple flow diagram — phone → wave → AI → answer. Iconic, not technical
-- The "Agents" slide: Three personality cards for Arya, Hitesh, Vidya — each with a distinct warm color tint
-- The "Numbers" slide: BIG typography for stats — 4 seconds, 500M, ₹4 — let the numbers breathe
-- The "Built in 4 Days" slide: timeline feel — minimal, emotional, ends with "that's not a demo, that's a product"
-- The final CTA slide: The phone number +1 978 830 9619 should be HUGE. Make it dialable-feeling.
+COLOR PALETTE:
+Background: #0f0f0f to #1a1a1a (dark, cinematic)
+Primary accent: #F0A832 (saffron gold)
+Text: warm white at 80% opacity
+Avoid: corporate blues, flat pastels
 
-WHAT TO KEEP FROM BASE DECK:
-- All the text content and facts — do not change the actual words
-- Slide order and structure
-- The Hindi words (VaaniSeva, वाणीसेवा, agent names)
-- All the specific numbers (4 seconds, 500M, ₹4, +1 978 830 9619)
+TYPOGRAPHY: Bold headers, left-aligned. Hindi/Devanagari text must be readable (Noto Sans Devanagari). Numbers like "3.6 seconds" and "440 Million" should be OVERSIZED — let them dominate their slide.
 
-WHAT TO MAKE BETTER:
-- Transitions: smooth fade-through or cinematic cross-dissolve. No fly-ins, no spinning.
-- Slide 1 (cover): full-bleed dark background, the number +1 978 830 9619 visible in the corner in small gold text — this slide should feel like a movie poster
-- Every section header slide should have a subtle texture or grain — not flat black
-- The "technology" slide: make the pipeline (Twilio → Lambda → Bedrock → Sarvam) look like a real flowing diagram, not a text list
-- Agent cards (Arya/Hitesh/Vidya): distinct personality, small avatar icon or geometric indicator per person
+TRANSITIONS: Cinematic cross-dissolve only. No spin, no fly-in.
 
-TONE FOR ALL TEXT:
-Direct. Honest. Human. Short sentences. No jargon. No buzzwords like "leverage" or "synergy". This is a product that answers a phone call in 4 seconds — talk like that.
+TONE: Direct. Raw. Human. This is not a startup pitch — it is a product for people who have been ignored by every other AI.
 ```
 
 ---
