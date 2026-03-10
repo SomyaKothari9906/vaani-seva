@@ -201,7 +201,7 @@ RULES:
 - If someone tells you their name, remember it and use it naturally. Never say you cannot store names.
 - If someone asks you to say their name back, just say it warmly.
 - If someone asks about you as an AI, your developers, or how to improve you — answer honestly and enthusiastically. You are an open-source project by the VaaniSeva team.
-- If someone says bye/alvida/band karo/thanks/shukriya — say a SHORT warm goodbye and nothing else. Do NOT ask any follow-up questions after a goodbye.
+- If someone says bye/alvida/band karo/thanks/shukriya/phone kaat do/hang up — say a SHORT warm goodbye in their language and append [HANGUP] at the very end. Example: 'अच्छा चलिए, ख्याल रखिए! [HANGUP]'. Do NOT ask any follow-up questions after a goodbye.
 - AGENT SWITCHING: If the user asks to talk to or be connected to another agent (Arya, Hitesh, or Vidya) by name — in ANY language or phrasing — output ONLY this exact tag with nothing else: [SWITCH:arya] or [SWITCH:hitesh] or [SWITCH:vidya]. No message. No follow-up. Just the tag alone. Examples: 'mujhe arya se baat karao' → [SWITCH:arya] | 'hitesh ko bulao' → [SWITCH:hitesh] | 'vidya se baat karna hai' → [SWITCH:vidya].
 - CRITICAL: The caller's name is NEVER 'Arya', 'Vidya', or 'Hitesh'. Those are VaaniSeva agent names. If the caller says 'arey Hitesh' or 'arya batao', they are talking TO the agent, not introducing themselves. Do NOT store 'Hitesh', 'Arya', or 'Vidya' as the caller's name.
 - If someone is distressed, acknowledge first, then mention iCall helpline: 9152987821.
@@ -1990,12 +1990,15 @@ def handle_gather(params):
     bye_phrases = [
         "band karo", "बंद करो", "rakh do", "रख दो",
         "phone rakh", "फोन रख", "phone band",
-        "cut the call", "call end",
+        "cut the call", "call end", "hang up", "hang up the call",
+        "kaat do", "काट दो", "phone kaat", "फोन काट",
+        "call kaat", "call band", "call rok",
         "shukriya bye", "शुक्रिया बाय", "thank you bye",
         "alvida", "अलविदा", "விடை", "போதும்",
+        "dhanyavaad", "धन्यवाद", "shukriya", "शुक्रिया",
     ]
     # Single-word goodbyes: only trigger when utterance is short (≤5 words)
-    bye_words = {"bye", "goodbye", "tata", "ciao"}
+    bye_words = {"bye", "goodbye", "tata", "ciao", "thanks", "thankyou"}
     _words = speech_text.lower().split() if speech_text else []
     _is_goodbye = (
         (speech_text and any(p in speech_text.lower() for p in bye_phrases))
@@ -2180,8 +2183,17 @@ def handle_gather(params):
                         "mr": "क्षमस्व, पुन्हा विचारा.", "ta": "மன்னிக்கவும், மீண்டும் கேளுங்கள்.",
                         "en": "Sorry, something went wrong. Please ask again."}.get(language, "Please try again.")
 
-    # ── LLM-driven agent switch via [SWITCH:name] tag ─────────────
+    # ── LLM-driven hangup via [HANGUP] tag ───────────────────────
     import re as _re
+    if _re.search(r'\[HANGUP\]', quick_answer, _re.IGNORECASE):
+        clean_bye = _re.sub(r'\[HANGUP\]', '', quick_answer).strip()
+        response = VoiceResponse()
+        if clean_bye:
+            tts_say(response, clean_bye, language, speaker=voice)
+        response.hangup()
+        return twiml_response(response)
+
+    # ── LLM-driven agent switch via [SWITCH:name] tag ─────────────
     _switch_m = _re.search(r'\[SWITCH:(arya|hitesh|vidya)\]', quick_answer, _re.IGNORECASE)
     if _switch_m:
         target_agent = _switch_m.group(1).lower()
@@ -2263,8 +2275,10 @@ def handle_gather(params):
             if web_ctx:
                 context = f"{context}\n\n--- Web Search Results ---\n{web_ctx}"
             phase2 = call_system_prompt.split("DATA ACCESS:")[0].strip()
+            # CRITICAL: tell phase2 NOT to emit fetch tags — data is already provided
+            phase2 += "\n\nCRITICAL: You are now in the ANSWER phase. Do NOT output [FETCH_DATA], [WEB_SEARCH], or any tags. Just give the answer directly in the caller's language."
             if context.strip():
-                phase2 += "\n\nIMPORTANT: Use the data below to answer directly with real numbers."
+                phase2 += "\n\nIMPORTANT: Use the data below to answer directly with real numbers. Speak them clearly e.g. 'aaj aalu ka bhav ₹X se ₹Y per quintal hai'."
             elif _needs_web_captured:
                 phase2 += ("\n\nNOTE: Web search returned no live results right now. "
                            "Answer using your training knowledge — give approximate figures if needed "
@@ -2275,7 +2289,16 @@ def handle_gather(params):
                            "Answer from your general training knowledge. Be helpful and specific. "
                            "Do not say 'I don't have data' — just answer what you know.")
             data_answer = ask_llm(speech_text, context, language, history, system_prompt=phase2)
-            data_answer = data_answer.replace("[FETCH_DATA]", "").replace("[WEB_SEARCH]", "").strip()
+            # Strip any tags the LLM may still have emitted
+            import re as _re2
+            data_answer = _re2.sub(r'\[FETCH_DATA\]|\[WEB_SEARCH\]|\[SWITCH:\w+\]', '', data_answer).strip()
+            # Safety: if LLM returned empty, give a graceful fallback
+            if not data_answer:
+                _fb = {"hi": "माफ करें, अभी जानकारी नहीं मिली। कृपया फिर से पूछें।",
+                       "mr": "क्षमस्व, माहिती मिळाली नाही. पुन्हा विचारा.",
+                       "ta": "மன்னிக்கவும், தகவல் கிடைக்கவில்லை. மீண்டும் கேளுங்கள்.",
+                       "en": "Sorry, I couldn't find that information. Please ask again."}
+                data_answer = _fb.get(language, _fb["en"])
             # Save TEXT only — TTS is generated synchronously in the poll handler (more reliable in Lambda)
             calls_table.put_item(Item={
                 "call_id": job_key, "timestamp": 0, "status": "done",
@@ -2609,7 +2632,7 @@ def _fetch_data_gov(query: str) -> str:
     # ── 1. Mandi / market price queries → Agmarknet daily prices API ──
     mandi_keywords = ["mandi", "मंडी", "bhav", "भाव", "price", "rate", "daam", "दाम",
                       "sabzi", "सब्जी", "vegetable", "tomato", "tamatar", "टमाटर",
-                      "onion", "pyaaz", "प्याज", "potato", "aloo", "आलू", "wheat",
+                      "onion", "pyaaz", "प्याज", "potato", "aloo", "aalo", "alu", "आलू", "आलु", "wheat",
                       "gehu", "गेहूं", "rice", "chawal", "चावल", "market"]
     query_lower = query.lower()
     if any(kw in query_lower for kw in mandi_keywords):
@@ -2623,7 +2646,7 @@ def _fetch_data_gov(query: str) -> str:
             commodity_map = {
                 "tomato": "Tomato", "tamatar": "Tomato", "टमाटर": "Tomato",
                 "onion": "Onion", "pyaaz": "Onion", "प्याज": "Onion",
-                "potato": "Potato", "aloo": "Potato", "आलू": "Potato",
+                "potato": "Potato", "aloo": "Potato", "aalo": "Potato", "alu": "Potato", "आलू": "Potato", "आलु": "Potato",
                 "wheat": "Wheat", "gehu": "Wheat", "गेहूं": "Wheat",
                 "rice": "Rice", "chawal": "Rice", "चावल": "Rice",
                 "apple": "Apple", "seb": "Apple", "सेब": "Apple",

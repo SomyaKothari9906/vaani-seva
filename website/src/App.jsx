@@ -14,6 +14,7 @@ import VaaniWidget from './components/VaaniAgent/VaaniWidget'
 import { AuthProvider } from './context/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const VAANI_API = import.meta.env.VITE_VAANI_API || 'http://localhost:8001'
 
 function App() {
   return (
@@ -36,8 +37,8 @@ function App() {
             </Routes>
           </main>
 
-          {/* Floating AI Agent — visible on every page */}
-          <VaaniWidget apiBaseUrl={API_BASE} />
+          {/* Floating AI Agent — Vaani, VaaniSeva's dedicated web assistant */}
+          <VaaniWidget apiBaseUrl={API_BASE} vaaniApiUrl={VAANI_API} />
         </div>
       </Router>
     </AuthProvider>

@@ -378,24 +378,212 @@ def add_connect_permission(lambda_arn):
         print("  ✓ Connect permission already exists")
 
 
+WEB_AGENT_LAMBDA_NAME = "vaaniseva-web-agent"
+WEB_AGENT_API_NAME    = "vaaniseva-web-agent-api"
+
+
+def package_web_agent_lambda():
+    """Zip the web agent Lambda code + minimal dependencies."""
+    import tempfile
+    print("Packaging Web Agent Lambda...")
+
+    tmp_root = tempfile.mkdtemp(prefix="vaaniseva_webagent_")
+    pkg_dir  = os.path.join(tmp_root, "web_agent_package")
+    zip_path = os.path.join(tmp_root, "web_agent.zip")
+    os.makedirs(pkg_dir, exist_ok=True)
+
+    # Only needs requests (boto3 is provided by Lambda runtime)
+    run(f"pip install requests -t {pkg_dir} -q")
+
+    shutil.copy("lambdas/web_agent/handler.py", f"{pkg_dir}/handler.py")
+
+    if not os.path.exists(os.path.join(pkg_dir, "requests")):
+        raise RuntimeError("pip install failed — 'requests' not found in web agent package dir.")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(pkg_dir):
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname  = os.path.relpath(filepath, pkg_dir)
+                zf.write(filepath, arcname)
+
+    file_count = sum(len(f) for _, _, f in os.walk(pkg_dir))
+    print(f"  ✓ Packaged: {zip_path} ({file_count} files)")
+    return zip_path
+
+
+def deploy_web_agent_lambda(zip_path, role_arn):
+    """Create or update the web agent Lambda function."""
+    print("Deploying Web Agent Lambda...")
+    env_vars = {
+        # AWS_REGION is a Lambda reserved key — it is set automatically by the runtime
+        "SARVAM_API_KEY":              os.environ.get("SARVAM_API_KEY", ""),
+        "WEB_AGENT_BEDROCK_MODEL_ID":  os.environ.get("WEB_AGENT_BEDROCK_MODEL_ID", "us.amazon.nova-lite-v1:0"),
+        "LOG_LEVEL":                   "INFO",
+    }
+
+    s3_client = boto3.client("s3", region_name=AWS_REGION)
+    bucket    = os.environ["S3_DOCUMENTS_BUCKET"]
+    s3_key    = "deployments/web_agent.zip"
+    print(f"  Uploading zip to S3: s3://{bucket}/{s3_key}")
+    s3_client.upload_file(zip_path, bucket, s3_key)
+    print("  ✓ Uploaded to S3")
+
+    try:
+        fn = lambda_client.create_function(
+            FunctionName=WEB_AGENT_LAMBDA_NAME,
+            Runtime="python3.11",
+            Role=role_arn,
+            Handler="handler.lambda_handler",
+            Code={"S3Bucket": bucket, "S3Key": s3_key},
+            Timeout=30,
+            MemorySize=512,
+            Environment={"Variables": env_vars}
+        )
+        arn = fn["FunctionArn"]
+        print(f"  ✓ Lambda created: {arn}")
+    except lambda_client.exceptions.ResourceConflictException:
+        lambda_client.update_function_code(
+            FunctionName=WEB_AGENT_LAMBDA_NAME,
+            S3Bucket=bucket,
+            S3Key=s3_key
+        )
+        print("  Waiting for Lambda code update to complete...")
+        waiter = lambda_client.get_waiter("function_updated")
+        waiter.wait(FunctionName=WEB_AGENT_LAMBDA_NAME)
+        lambda_client.update_function_configuration(
+            FunctionName=WEB_AGENT_LAMBDA_NAME,
+            Environment={"Variables": env_vars},
+            Timeout=30,
+            MemorySize=512
+        )
+        arn = lambda_client.get_function(FunctionName=WEB_AGENT_LAMBDA_NAME)["Configuration"]["FunctionArn"]
+        print(f"  ✓ Lambda updated: {arn}")
+
+    return arn
+
+
+def create_web_agent_api_gateway(lambda_arn):
+    """Create REST API Gateway with /vaani/chat and /vaani/stt routes."""
+    print("Creating Web Agent API Gateway...")
+
+    apis = apigw_client.get_rest_apis()["items"]
+    existing = next((a for a in apis if a["name"] == WEB_AGENT_API_NAME), None)
+    if existing:
+        api_id = existing["id"]
+        print(f"  ✓ API already exists: {api_id}")
+    else:
+        api = apigw_client.create_rest_api(name=WEB_AGENT_API_NAME, description="VaaniSeva Web Agent API")
+        api_id = api["id"]
+        print(f"  ✓ API created: {api_id}")
+
+    resources = apigw_client.get_resources(restApiId=api_id)["items"]
+    root_id   = next(r["id"] for r in resources if r["path"] == "/")
+
+    def get_or_create_resource(parent_id, path_part):
+        existing_res = next((r for r in resources if r.get("pathPart") == path_part
+                             and r.get("parentId") == parent_id), None)
+        if existing_res:
+            return existing_res["id"]
+        res = apigw_client.create_resource(restApiId=api_id, parentId=parent_id, pathPart=path_part)
+        resources.append(res)
+        return res["id"]
+
+    def add_post_method(resource_id, path):
+        try:
+            apigw_client.put_method(
+                restApiId=api_id, resourceId=resource_id,
+                httpMethod="POST", authorizationType="NONE"
+            )
+        except apigw_client.exceptions.ConflictException:
+            pass
+        apigw_client.put_integration(
+            restApiId=api_id, resourceId=resource_id, httpMethod="POST",
+            type="AWS_PROXY", integrationHttpMethod="POST",
+            uri=f"arn:aws:apigateway:{AWS_REGION}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
+        )
+        print(f"    ✓ POST {path}")
+
+    def add_options_method(resource_id, path):
+        try:
+            apigw_client.put_method(
+                restApiId=api_id, resourceId=resource_id,
+                httpMethod="OPTIONS", authorizationType="NONE"
+            )
+        except apigw_client.exceptions.ConflictException:
+            pass
+        apigw_client.put_integration(
+            restApiId=api_id, resourceId=resource_id, httpMethod="OPTIONS",
+            type="AWS_PROXY", integrationHttpMethod="POST",
+            uri=f"arn:aws:apigateway:{AWS_REGION}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
+        )
+        print(f"    ✓ OPTIONS {path}")
+
+    vaani_id = get_or_create_resource(root_id, "vaani")
+    chat_id  = get_or_create_resource(vaani_id, "chat")
+    stt_id   = get_or_create_resource(vaani_id, "stt")
+
+    add_post_method(chat_id,    "/vaani/chat")
+    add_options_method(chat_id, "/vaani/chat")
+    add_post_method(stt_id,     "/vaani/stt")
+    add_options_method(stt_id,  "/vaani/stt")
+
+    # Grant API Gateway permission to invoke web agent Lambda
+    try:
+        lambda_client.add_permission(
+            FunctionName=WEB_AGENT_LAMBDA_NAME,
+            StatementId="apigateway-invoke",
+            Action="lambda:InvokeFunction",
+            Principal="apigateway.amazonaws.com",
+            SourceArn=f"arn:aws:execute-api:{AWS_REGION}:{ACCOUNT_ID}:{api_id}/*/*"
+        )
+    except lambda_client.exceptions.ResourceConflictException:
+        pass
+
+    apigw_client.create_deployment(restApiId=api_id, stageName="prod")
+    base_url = f"https://{api_id}.execute-api.{AWS_REGION}.amazonaws.com/prod"
+    print(f"  ✓ Deployed Web Agent API: {base_url}")
+    return base_url
+
+
 def main():
+    import sys
+    web_only = "--web-agent" in sys.argv
+
     print("=" * 50)
-    print("VaaniSeva Deployment")
+    if web_only:
+        print("VaaniSeva — Web Agent Deployment")
+    else:
+        print("VaaniSeva Deployment")
     print("=" * 50)
 
-    role_arn   = create_lambda_role()
-    zip_path   = package_lambda()
-    lambda_arn = deploy_lambda(zip_path, role_arn)
-    base_url   = create_api_gateway(lambda_arn)
-    update_twilio_webhook(base_url)
-    add_connect_permission(lambda_arn)
+    role_arn = create_lambda_role()
+
+    if not web_only:
+        zip_path   = package_lambda()
+        lambda_arn = deploy_lambda(zip_path, role_arn)
+        base_url   = create_api_gateway(lambda_arn)
+        update_twilio_webhook(base_url)
+        add_connect_permission(lambda_arn)
+
+        print("\n" + "=" * 50)
+        print("CALL AGENT DEPLOYMENT COMPLETE")
+        print(f"API Base URL : {base_url}")
+        print(f"Twilio calls : {os.environ['TWILIO_PHONE_NUMBER']}")
+        print(f"\nNext: Run seed script:")
+        print(f"  python scripts/seed_knowledge.py")
+        print("=" * 50)
+
+    # Always deploy web agent (unless running call-only in future)
+    web_zip  = package_web_agent_lambda()
+    web_arn  = deploy_web_agent_lambda(web_zip, role_arn)
+    web_url  = create_web_agent_api_gateway(web_arn)
 
     print("\n" + "=" * 50)
-    print("DEPLOYMENT COMPLETE")
-    print(f"API Base URL : {base_url}")
-    print(f"Twilio calls : {os.environ['TWILIO_PHONE_NUMBER']}")
-    print(f"\nNext: Run seed script:")
-    print(f"  python scripts/seed_knowledge.py")
+    print("WEB AGENT DEPLOYMENT COMPLETE")
+    print(f"Web Agent API : {web_url}")
+    print(f"\nSet this in Vercel / .env.local:")
+    print(f"  VITE_VAANI_API={web_url}")
     print("=" * 50)
 
 

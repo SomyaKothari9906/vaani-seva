@@ -38,15 +38,30 @@ const executeAction = (action, navigate) => {
   }
 }
 
+// ── Language detector (script-based, no library needed) ─────
+const detectLang = (text) => {
+  if (/[\u0900-\u097F]/.test(text)) return 'hi'   // Devanagari → Hindi
+  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta'   // Tamil
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te'   // Telugu
+  if (/[\u0C80-\u0CFF]/.test(text)) return 'kn'   // Kannada
+  if (/[\u0980-\u09FF]/.test(text)) return 'bn'   // Bengali
+  if (/[\u0A80-\u0AFF]/.test(text)) return 'gu'   // Gujarati
+  if (/[\u0A00-\u0A7F]/.test(text)) return 'pa'   // Punjabi
+  return 'en'
+}
+
 // ── Main Widget ───────────────────────────────────────
-export default function VaaniWidget({ apiBaseUrl } = {}) {
-  const base = apiBaseUrl || import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+export default function VaaniWidget({ apiBaseUrl, vaaniApiUrl } = {}) {
+  // apiBaseUrl → calling agent (phone/Twilio) — unchanged, used by TryPage
+  // vaaniApiUrl → Vaani web agent (this widget's DEDICATED AI)
+  const vaaniApi = vaaniApiUrl || import.meta.env.VITE_VAANI_API || 'http://localhost:8001'
   const navigate = useNavigate()
 
   const [isOpen, setIsOpen] = useState(false)
   const [mode, setMode] = useState('agent')   // 'agent' | 'text'
+  const VAANI_GREETING = 'नमस्ते! 🙏 मैं वाणी हूँ — VaaniSeva की web assistant। आप मुझसे कुछ भी पूछ सकते हैं — योजनाओं के बारे में, VaaniSeva के बारे में, या हमारी team के बारे में!'
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'नमस्ते! मैं वाणी हूँ। आप किस सरकारी योजना के बारे में जानना चाहते हैं?' }
+    { role: 'assistant', content: VAANI_GREETING }
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -55,8 +70,9 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
   const [pendingActions, setPendingActions] = useState([])
 
   const messagesEndRef = useRef(null)
-  const recognitionRef = useRef(null)
-  const sessionIdRef = useRef(crypto.randomUUID())
+  const recognitionRef = useRef(null)           // browser STT fallback
+  const mediaRecorderRef = useRef(null)         // Sarvam STT (primary)
+  const audioChunksRef = useRef([])
 
   // ── Load chat history ─────────────────────────────
   useEffect(() => {
@@ -75,20 +91,53 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // ── Speech Recognition (Hindi-first) ──────────────
+  // ── STT: browser fallback setup ───────────────────
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition
       recognitionRef.current = new SR()
       recognitionRef.current.continuous = false
       recognitionRef.current.interimResults = true
-      recognitionRef.current.lang = 'hi-IN'   // Hindi-first
-      recognitionRef.current.onresult = (event) => {
-        setInput(Array.from(event.results).map((r) => r[0].transcript).join(''))
+      recognitionRef.current.lang = 'hi-IN'
+      recognitionRef.current.onresult = (e) => {
+        setInput(Array.from(e.results).map((r) => r[0].transcript).join(''))
       }
       recognitionRef.current.onend = () => setIsRecording(false)
     }
   }, [])
+
+  // ── STT: Sarvam Saarika via MediaRecorder ─────────
+  const startSarvamSTT = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus' : 'audio/webm'
+    const recorder = new MediaRecorder(stream, { mimeType })
+    mediaRecorderRef.current = recorder
+    audioChunksRef.current = []
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop())
+      const blob = new Blob(audioChunksRef.current, { type: mimeType })
+      try {
+        const buf = await blob.arrayBuffer()
+        const bytes = new Uint8Array(buf)
+        let binary = ''
+        bytes.forEach((b) => (binary += String.fromCharCode(b)))
+        const audio_base64 = btoa(binary)
+        const res = await fetch(`${vaaniApi}/stt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_base64, language: 'hi-IN' }),
+        })
+        const data = await res.json()
+        if (data.transcript) setInput(data.transcript)
+      } catch (e) {
+        console.error('[Sarvam STT Error]', e)
+      }
+    }
+    recorder.start()
+    setIsRecording(true)
+  }
 
   // ── Execute pending actions ───────────────────────
   useEffect(() => {
@@ -100,147 +149,164 @@ export default function VaaniWidget({ apiBaseUrl } = {}) {
     }
   }, [currentResponse, pendingActions, navigate])
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (isRecording) {
-      recognitionRef.current?.stop()
+      // Stop whichever recorder is active
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop()
+      } else {
+        recognitionRef.current?.stop()
+      }
       setIsRecording(false)
     } else {
-      recognitionRef.current?.start()
-      setIsRecording(true)
+      // Prefer Sarvam STT via MediaRecorder; fallback to browser STT
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          await startSarvamSTT()
+        } catch (e) {
+          console.warn('[STT] MediaRecorder failed, falling back to browser STT', e)
+          recognitionRef.current?.start()
+          setIsRecording(true)
+        }
+      } else if (recognitionRef.current) {
+        recognitionRef.current.start()
+        setIsRecording(true)
+      }
     }
   }
 
-  // ── Send message ──────────────────────────────────
+  // ── Send message → Vaani Web Agent ───────────────
   const handleSend = async () => {
     if (!input.trim()) return
     const userMsg = input.trim()
     setInput('')
     setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
     setIsTyping(true)
-
     window.dispatchEvent(new CustomEvent('aura:setAnimation', { detail: 'thinking' }))
 
     try {
-      const res = await fetch(`${base}/chat`, {
+      // Send to Vaani's dedicated web agent — NOT the calling agent
+      const history = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.content }))
+
+      const res = await fetch(`${vaaniApi}/vaani/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg, language: 'hi', session_id: sessionIdRef.current })
+        body: JSON.stringify({
+          message: userMsg,
+          history,
+          language: detectLang(userMsg),
+        }),
       })
       const data = await res.json()
 
-      let finalText = data.answer || 'Sorry, something went wrong.'
+      const finalText = data.answer || 'Sorry, something went wrong.'
+      const emotion = data.emotion || null
+      const navTarget = data.nav_target || null
 
-      // Parse emotion tag
-      const emotionMatch = finalText.match(/\[EMOTION:\s*(\w+)\]/i)
-      if (emotionMatch) {
-        const emotion = emotionMatch[1].toLowerCase()
-        const animMap = {
-          happy: 'mainidle', laugh: 'laughing', thinking: 'thinking',
-          thankful: 'thankful', bashful: 'bashful', waving: 'waveing', wave: 'waveing'
-        }
-        window.dispatchEvent(new CustomEvent('aura:setAnimation', { detail: animMap[emotion] || 'mainidle' }))
-        finalText = finalText.replace(emotionMatch[0], '').trim()
+      // Trigger avatar animation
+      const animMap = {
+        happy: 'waveing', thankful: 'thankful', thinking: 'thinking',
+        laugh: 'laughing', shock: 'surprised', bashful: 'bashful', wave: 'waveing',
+      }
+      window.dispatchEvent(new CustomEvent('aura:setAnimation', {
+        detail: animMap[emotion] || 'mainidle',
+      }))
+
+      // Queue navigation action if LLM returned one
+      if (navTarget) setPendingActions([{ type: 'navigate', target: navTarget }])
+
+      if (data.audio_base64) {
+        speakResponse(finalText, data.audio_base64)
       } else {
+        // No TTS audio — show text only
+        setMessages((prev) => [...prev, { role: 'assistant', content: finalText }])
+        setIsTyping(false)
         window.dispatchEvent(new CustomEvent('aura:setAnimation', { detail: 'mainidle' }))
       }
-
-      // Parse action tag
-      if (data.data?.actions?.length > 0) {
-        setPendingActions(data.data.actions)
-      }
-
-      // Clean text for TTS (remove emojis, brackets)
-      const cleanTTS = finalText
-        .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
-        .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim()
-
-      if (cleanTTS.length > 0) {
-        speakResponse(cleanTTS, finalText, data.audio_url)
-      } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: finalText || '😊' }])
-        setIsTyping(false)
-      }
     } catch (e) {
-      console.error('[Vaani Error]', e)
+      console.error('[Vaani Web Agent Error]', e)
       setIsTyping(false)
       window.dispatchEvent(new CustomEvent('aura:setAnimation', { detail: 'mainidle' }))
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'कनेक्शन में समस्या है। कृपया दोबारा कोशिश करें।' }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'कनेक्शन में समस्या है। कृपया दोबारा करें।' }])
     }
   }
 
-  // ── TTS + Lip Sync Pipeline ───────────────────────
-  const speakResponse = async (text, displayText, audioUrl) => {
+  // ── Sarvam TTS + Lip Sync Pipeline ───────────────
+  const speakResponse = async (displayText, audioBase64) => {
     setIsTyping(false)
     try {
-      if (!audioUrl) throw new Error('No audio URL')
-      const res = await fetch(audioUrl)
+      // Decode base64 WAV returned directly from Sarvam via our Lambda
+      const binaryString = atob(audioBase64)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      const arrayBuffer = bytes.buffer
 
-      if (res.ok) {
-        const arrayBuffer = await res.arrayBuffer()
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
 
-        const source = audioContext.createBufferSource()
-        source.buffer = audioBuffer
-        const analyser = audioContext.createAnalyser()
-        analyser.fftSize = 2048
-        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+      const source = audioContext.createBufferSource()
+      source.buffer = audioBuffer
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 2048
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
-        source.connect(analyser)
-        analyser.connect(audioContext.destination)
-        source.start()
+      source.connect(analyser)
+      analyser.connect(audioContext.destination)
+      source.start()
 
-        // Word-by-word subtitle sync
-        const duration = audioBuffer.duration * 1000
-        const words = text.split(' ')
-        const timePerWord = duration / words.length
-        let current = ''
-        setCurrentResponse('')
+      // Word-by-word subtitle sync
+      const duration = audioBuffer.duration * 1000
+      const words = displayText.split(' ')
+      const timePerWord = Math.max(duration / words.length, 80)
+      let current = ''
+      setCurrentResponse('')
 
-        words.forEach((word, i) => {
-          setTimeout(() => {
-            current += (i === 0 ? '' : ' ') + word
-            setCurrentResponse(current)
-            if (i === words.length - 1) {
-              setMessages((prev) => [...prev, { role: 'assistant', content: displayText || text }])
-            }
-          }, i * timePerWord)
-        })
-
-        // Lip sync — read audio amplitude → drive mouthOpen morph
-        let rafId
-        const updateMouth = () => {
-          analyser.getByteTimeDomainData(dataArray)
-          let sum = 0
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += Math.pow((dataArray[i] - 128) / 128, 2)
+      words.forEach((word, i) => {
+        setTimeout(() => {
+          current += (i === 0 ? '' : ' ') + word
+          setCurrentResponse(current)
+          if (i === words.length - 1) {
+            setMessages((prev) => [...prev, { role: 'assistant', content: displayText }])
           }
-          const volume = Math.min(1, Math.sqrt(sum / dataArray.length) * 4)
-          window.dispatchEvent(new CustomEvent('aura:setMorph', { detail: { name: 'mouthOpen', value: volume } }))
-          rafId = requestAnimationFrame(updateMouth)
-        }
-        updateMouth()
+        }, i * timePerWord)
+      })
 
-        source.onended = () => {
-          cancelAnimationFrame(rafId)
-          window.dispatchEvent(new CustomEvent('aura:setMorph', { detail: { name: 'mouthOpen', value: 0 } }))
-          audioContext.close()
-          setTimeout(() => setCurrentResponse(''), 3000)
+      // Lip sync — audio amplitude drives mouthOpen morph
+      let rafId
+      const updateMouth = () => {
+        analyser.getByteTimeDomainData(dataArray)
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += Math.pow((dataArray[i] - 128) / 128, 2)
         }
-      } else {
-        throw new Error('TTS failed')
+        const volume = Math.min(1, Math.sqrt(sum / dataArray.length) * 4)
+        window.dispatchEvent(new CustomEvent('aura:setMorph', { detail: { name: 'mouthOpen', value: volume } }))
+        rafId = requestAnimationFrame(updateMouth)
+      }
+      updateMouth()
+
+      source.onended = () => {
+        cancelAnimationFrame(rafId)
+        window.dispatchEvent(new CustomEvent('aura:setMorph', { detail: { name: 'mouthOpen', value: 0 } }))
+        window.dispatchEvent(new CustomEvent('aura:setAnimation', { detail: 'mainidle' }))
+        audioContext.close()
+        setTimeout(() => setCurrentResponse(''), 3000)
       }
     } catch (e) {
-      console.error('[TTS Error]', e)
-      // Fallback: just show text
-      setMessages((prev) => [...prev, { role: 'assistant', content: displayText || text }])
-      setCurrentResponse(text)
+      console.error('[TTS Playback Error]', e)
+      setMessages((prev) => [...prev, { role: 'assistant', content: displayText }])
+      setCurrentResponse(displayText)
       setTimeout(() => setCurrentResponse(''), 3000)
     }
   }
 
   const clearHistory = () => {
-    setMessages([{ role: 'assistant', content: 'नमस्ते! मैं वाणी हूँ। आप किस सरकारी योजना के बारे में जानना चाहते हैं?' }])
+    setMessages([{ role: 'assistant', content: VAANI_GREETING }])
     localStorage.removeItem('vaani_chat_history')
   }
 
