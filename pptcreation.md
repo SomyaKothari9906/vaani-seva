@@ -252,35 +252,29 @@ Don't have international call balance? Visit **vaaniseva.me** — enter your num
 ## SlidePilot / nanobanana Prompt
 
 ```
-Redesign this presentation for VaaniSeva — a live AI voice assistant for rural India. Works on any basic phone call. No smartphone. No internet. No English.
+Redesign this VaaniSeva presentation. KEEP ALL TEXT EXACTLY AS-IS.
 
-KEEP ALL TEXT EXACTLY AS-IS. Do not remove or reword anything.
+GENERATE AI IMAGES for every slide — cinematic, painterly, Indian rural realism, warm tones.
 
-GENERATE AI IMAGES for every slide — do not leave slides text-only. Use cinematic, painterly illustration style. Indian rural realism. Warm and human.
+Per-slide images:
+- Cover: Indian village morning, golden light, woman on basic phone. Dark gradient left for text.
+- Problem: One silhouette with keypad phone excluded from a digital crowd.
+- Who We're Building For: Four portraits — Vidarbha farmer, Jharkhand mother, Surat migrant worker, elderly Tamil Nadu man.
+- How It Works: Icon flow — phone → sound wave → AI brain → speaker. Warm amber on dark bg.
+- AI Agents: Three avatar cards — Arya (gold/saree), Hitesh (earthy/field), Vidya (soft light/health).
+- Knowledge Base: Illustrated collage — PM-Kisan form, Ayushman card, mandi price board.
+- Technology: Glowing pipeline — Twilio → Lambda → Bedrock → Sarvam AI → caller's ear.
+- Why It's Hard: 4 quadrants — 2G signal bars, Indian script, verified stamp, ₹500 Nokia.
+- Road Ahead: Timeline ribbon, milestone illustrations, hopeful.
+- Final CTA: Phone held up to light, gold tones. "+1 978 830 9619" displayed huge.
 
-Slide-by-slide image direction:
-- Cover: Full-bleed image — Indian village morning, golden light, woman on a basic phone. Overlay dark gradient left-side for text.
-- Problem slide: Crowded digital world with one silhouette standing apart, holding a keypad phone — excluded, but dignified.
-- Who We're Building For: Four persona portraits — a Vidarbha farmer at dusk, a Jharkhand mother indoors, a Surat migrant worker on street, an elderly Tamil Nadu man sitting alone.
-- How It Works: Clean icon-flow diagram image — basic phone → sound wave → AI brain → speaker. Warm amber on dark background.
-- AI Agents slide: Three illustrated avatar cards — Arya (warm, saree, gold tones), Hitesh (practical, field background, earthy), Vidya (gentle, soft light, health context).
-- Knowledge Base slide: Illustrated collage — PM-Kisan form, Ayushman Bharat card, mandi board, legal document. Warm illustrated style.
-- Technology Stack slide: Visual pipeline diagram — Twilio → AWS Lambda → Bedrock Nova Lite → Sarvam AI → caller's ear. Glowing nodes on dark bg.
-- Why It's Hard slide: 4 illustrated quadrants, each showing the challenge (2G signal bars, Indian-language text, a verified stamp, a ₹500 Nokia).
-- Road Ahead slide: Timeline ribbon with milestone illustrations. Hopeful, forward-moving.
-- Final CTA slide: Full-bleed dramatic image — phone being held up to light, gold tones. Phone number +1 978 830 9619 displayed huge.
+COLORS: Dark bg #0f0f0f–#1a1a1a. Accent #F0A832 saffron gold. Text warm white. No blues.
 
-COLOR PALETTE:
-Background: #0f0f0f to #1a1a1a (dark, cinematic)
-Primary accent: #F0A832 (saffron gold)
-Text: warm white at 80% opacity
-Avoid: corporate blues, flat pastels
+TYPOGRAPHY: Bold headers. Stats like "440 Million" and "3.6 seconds" oversized. Noto Sans Devanagari for Hindi text.
 
-TYPOGRAPHY: Bold headers, left-aligned. Hindi/Devanagari text must be readable (Noto Sans Devanagari). Numbers like "3.6 seconds" and "440 Million" should be OVERSIZED — let them dominate their slide.
+TRANSITIONS: Cross-dissolve only. No spin, no fly-in.
 
-TRANSITIONS: Cinematic cross-dissolve only. No spin, no fly-in.
-
-TONE: Direct. Raw. Human. This is not a startup pitch — it is a product for people who have been ignored by every other AI.
+TONE: Direct, raw, human. Not a startup pitch — a product for people ignored by every other AI.
 ```
 
 ---

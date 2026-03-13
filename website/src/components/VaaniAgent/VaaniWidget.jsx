@@ -53,8 +53,10 @@ const detectLang = (text) => {
 // ── Main Widget ───────────────────────────────────────
 export default function VaaniWidget({ apiBaseUrl, vaaniApiUrl } = {}) {
   // apiBaseUrl → calling agent (phone/Twilio) — unchanged, used by TryPage
-  // vaaniApiUrl → Vaani web agent (this widget's DEDICATED AI)
-  const vaaniApi = vaaniApiUrl || import.meta.env.VITE_VAANI_API || 'http://localhost:8001'
+  // Normalize API URL to ensure no trailing slash or accidental quotes from env vars
+  const rawApi = vaaniApiUrl || import.meta.env.VITE_VAANI_API || 'http://localhost:8001'
+  const vaaniApi = rawApi.replace(/['"]/g, '').replace(/\/$/, '')
+
   const navigate = useNavigate()
 
   const [isOpen, setIsOpen] = useState(false)
@@ -124,7 +126,7 @@ export default function VaaniWidget({ apiBaseUrl, vaaniApiUrl } = {}) {
         let binary = ''
         bytes.forEach((b) => (binary += String.fromCharCode(b)))
         const audio_base64 = btoa(binary)
-        const res = await fetch(`${vaaniApi}/stt`, {
+        const res = await fetch(`${vaaniApi}/vaani/stt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ audio_base64, language: 'hi-IN' }),
@@ -247,6 +249,9 @@ export default function VaaniWidget({ apiBaseUrl, vaaniApiUrl } = {}) {
       const arrayBuffer = bytes.buffer
 
       const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+      }
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
 
       const source = audioContext.createBufferSource()
